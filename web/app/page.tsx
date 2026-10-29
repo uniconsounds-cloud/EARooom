@@ -3,7 +3,7 @@ import Link from "next/link";
 const navLinks = [
   { label: "Explore", href: "#trending" },
   { label: "Build", href: "/build" },
-  { label: "My Strategies", href: "#community" },
+  { label: "My Strategies", href: "/strategies" },
   { label: "Backtest", href: "#performance" },
   { label: "Community", href: "#creators" },
   { label: "Pricing", href: "#pricing" },
@@ -153,7 +153,7 @@ export default function Home() {
           ))}
         </nav>
         <div className="header-actions">
-          <Link href="#sign-in" className="sign-in-link">
+          <Link href="/account" className="sign-in-link">
             เข้าสู่ระบบ
           </Link>
           <Link href="/build" className="header-cta">

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getSupabase } from "@/lib/supabase";
 
 const STEPS = ["Entry", "Manage", "Exit", "Protection"] as const;
 type Entry = "ma_cross" | "price_ma" | "rsi_recovery";
@@ -40,6 +41,43 @@ export default function Builder() {
   const [strategy, setStrategy] = useState<Strategy>(defaults);
   const [notice, setNotice] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [strategyId, setStrategyId] = useState<string | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    async function loadRemote() {
+      const id = new URLSearchParams(window.location.search).get("id"); if (!id) return;
+      const db = getSupabase(); if (!db) { setNotice("ยังไม่ได้เชื่อม Supabase จึงไม่สามารถเปิด Strategy ที่บันทึกในบัญชีได้"); return; }
+      const { data: { user }, error: authError } = await db.auth.getUser();
+      if (!active) return;
+      if (authError || !user) { setNotice("กรุณาเข้าสู่ระบบก่อนเปิด Strategy ที่บันทึกไว้"); return; }
+      const {data,error} = await db.from("strategies").select("id,config").eq("id",id).maybeSingle();
+      if (!active) return;
+      if (error || !data || !isDraft(data.config)) { setNotice("ไม่พบ Strategy หรือไม่สามารถอ่านข้อมูลนี้ได้"); return; }
+      setStrategy(data.config); setStrategyId(data.id); setNotice("เปิด Strategy จากบัญชีแล้ว");
+    }
+    void loadRemote(); return () => { active = false; };
+  }, []);
+  async function saveRemote() {
+    const error=valid(strategy); if(error){setNotice(error);return;}
+    const db=getSupabase(); if(!db){setNotice("ยังไม่ได้เชื่อม Supabase คุณสามารถบันทึก Draft ในเบราว์เซอร์ได้ก่อน");return;}
+    setRemoteBusy(true);
+    try {
+      const {data:{user},error:authError}=await db.auth.getUser();
+      if(authError || !user){setNotice("กรุณาเข้าสู่ระบบก่อนบันทึกลงบัญชี");return;}
+      const payload={name:strategy.name.trim(),config:strategy};
+      if(strategyId) {
+        const {data,error}=await db.from("strategies").update(payload).eq("id",strategyId).select("id").maybeSingle();
+        if(error || !data) throw new Error("update failed");
+      } else {
+        const {data,error}=await db.from("strategies").insert({...payload,owner_id:user.id}).select("id").single();
+        if(error || !data) throw new Error("insert failed");
+        setStrategyId(data.id);
+        window.history.replaceState(null,"",`/build?id=${encodeURIComponent(data.id)}`);
+      }
+      setNotice("บันทึก Strategy ในบัญชีแล้ว");
+    } catch {setNotice("บันทึกลงบัญชีไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองอีกครั้ง");} finally {setRemoteBusy(false);}
+  }
   const updateEntry = (key: keyof Strategy["entry"], value: string | number) => setStrategy(s => ({ ...s, entry: { ...s.entry, [key]: value } }));
   const summary = strategy.entry.type === "ma_cross" ? `SMA ${strategy.entry.fastPeriod} ตัด SMA ${strategy.entry.slowPeriod}` : strategy.entry.type === "price_ma" ? `ราคาปิดตัด SMA ${strategy.entry.maPeriod}` : `RSI ${strategy.entry.rsiPeriod} กลับผ่าน ${strategy.entry.rsiLow} / ${strategy.entry.rsiHigh}`;
   function save() {
@@ -47,7 +85,7 @@ export default function Builder() {
     try { localStorage.setItem(storageKey, JSON.stringify(strategy)); setNotice("บันทึก draft ในเบราว์เซอร์นี้แล้ว"); setLoaded(true); } catch { setNotice("บันทึกไม่ได้ กรุณาตรวจสอบพื้นที่จัดเก็บของเบราว์เซอร์"); }
   }
   function load() {
-    try { const raw = localStorage.getItem(storageKey); if (!raw) { setNotice("ยังไม่มี draft ที่บันทึกในเบราว์เซอร์นี้"); return; } const data: unknown = JSON.parse(raw); if (!isDraft(data)) { setNotice("ไม่สามารถอ่าน draft นี้ได้ กรุณาสร้าง draft ใหม่"); return; } setStrategy(data); setNotice("โหลด draft ที่บันทึกไว้แล้ว"); setLoaded(true); } catch { setNotice("ไม่สามารถอ่าน draft จากเบราว์เซอร์นี้ได้"); }
+    try { const raw = localStorage.getItem(storageKey); if (!raw) { setNotice("ยังไม่มี draft ที่บันทึกในเบราว์เซอร์นี้"); return; } const data: unknown = JSON.parse(raw); if (!isDraft(data)) { setNotice("ไม่สามารถอ่าน draft นี้ได้ กรุณาสร้าง draft ใหม่"); return; } setStrategy(data); setStrategyId(null); window.history.replaceState(null, "", "/build"); setNotice("โหลด draft ในเบราว์เซอร์แล้ว · บันทึกลงบัญชีเป็น Strategy ใหม่ได้"); setLoaded(true); } catch { setNotice("ไม่สามารถอ่าน draft จากเบราว์เซอร์นี้ได้"); }
   }
   const field = (label: string, value: number, onChange: (n: number) => void, suffix: string, min = 1, increment = 1) => <label className="builder-field"><span>{label}</span><span className="input-wrap"><input type="number" min={min} step={increment} value={value || ""} onChange={e => onChange(num(e.target.value))} /><small>{suffix}</small></span></label>;
   return <div className="builder-page">
@@ -70,7 +108,7 @@ export default function Builder() {
           <div className="panel-actions"><button type="button" className="button-back" onClick={()=>{setStep(Math.max(0,step-1));setNotice("");}} disabled={step===0}>← ย้อนกลับ</button>{step < 3 ? <button type="button" className="button-next" onClick={()=>{setStep(step+1);setNotice("");}}>ขั้นตอนถัดไป <span>→</span></button> : <button type="button" className="button-next" onClick={save}>บันทึก Draft <span>✓</span></button>}</div>
           {notice && <p className="builder-notice" role="status">{notice}</p>}
         </section>
-      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{strategy.manage.lotSize} lot · สูงสุด {strategy.manage.maxPositions} ไม้</strong></div><div><span>03 <b>Exit</b></span><strong>SL {strategy.exit.stopLossPips} / TP {strategy.exit.takeProfitPips} pips</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><div className="sidebar-foot"><span>✳</span><p>Draft เก็บเฉพาะในเบราว์เซอร์นี้ ยังไม่ได้เชื่อมบัญชี, Backtest หรือ MT5{loaded ? " คุณสามารถโหลดกลับมาแก้ไขได้" : ""}</p></div></aside></div>
+      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{strategy.manage.lotSize} lot · สูงสุด {strategy.manage.maxPositions} ไม้</strong></div><div><span>03 <b>Exit</b></span><strong>SL {strategy.exit.stopLossPips} / TP {strategy.exit.takeProfitPips} pips</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Strategy ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link></div><div className="sidebar-foot"><span>✳</span><p>Draft ในเบราว์เซอร์และ Strategy ในบัญชีบันทึกแยกกัน ยังไม่ได้เชื่อม Backtest หรือ MT5{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
       <p className="builder-footer">EASpaze · สร้างอย่างเข้าใจ ทดลองอย่างรอบคอบ</p>
     </main>
   </div>;
