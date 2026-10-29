@@ -9,3 +9,7 @@
 
 .account-save{width:100%;margin-top:18px;padding:11px;border:0;border-radius:8px;background:#151b35;color:#fff;font-size:11px;font-weight:700;cursor:pointer}.account-save:disabled{opacity:.6}.sidebar-account-links{display:flex;justify-content:space-between;margin-top:12px;color:#6556d7;font-size:10px;font-weight:700}
 .publish-toggle {display:flex;align-items:flex-start;gap:9px;margin-top:18px;padding:12px;border:1px solid #e6e8f1;border-radius:9px;background:#fafaff;cursor:pointer}.publish-toggle input {margin-top:3px;accent-color:#6c5ce7}.publish-toggle strong,.publish-toggle small {display:block}.publish-toggle strong {color:#4f46a8;font-size:11px}.publish-toggle small {margin-top:4px;color:#858a9a;font-size:9px;line-height:1.6}
+.advanced-settings {margin-top:17px;padding-top:14px;border-top:1px solid #e5e9f1}
+.advanced-settings summary {cursor:pointer;color:#594bc7;font-size:11px;font-weight:700}
+.advanced-settings .field-grid {margin-top:14px}
+.input-wrap select {width:100%;min-width:0;padding:10px 11px;border:0;border-radius:8px;outline-color:#6c5ce7;background:transparent;color:#222a42;font-size:12px;font-weight:700}
