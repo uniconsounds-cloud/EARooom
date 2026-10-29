@@ -8,19 +8,25 @@ const STEPS = ["Entry", "Manage", "Exit", "Protection"] as const;
 type Entry = "ma_cross" | "price_ma" | "rsi_recovery";
 type Direction = "both" | "buy" | "sell";
 type LotMode = "fixed" | "multiplier";
-type RecoveryPreset = "distance" | "candle" | "trend" | "range" | "atr" | "manual";
+type RecoveryPreset = "distance" | "candle" | "trend" | "range" | "atr" | "manual" | "custom";
+type RecoveryConditionKind = "candle_reversal" | "trend_filter" | "range_reentry" | "atr_gate" | "rsi_recovery" | "manual_confirm";
+type RecoveryCondition = { kind: RecoveryConditionKind; timeframe?: string; period?: number; level?: number; method?: string };
+type AddOrderRule = { logic: "all" | "any"; conditions: RecoveryCondition[] };
+type ExitRuleKind = "average_target" | "trailing_average" | "partial_close" | "time_limit" | "signal_exit" | "manual_close";
+type ExitRule = { kind: ExitRuleKind; value?: number; secondaryValue?: number; timeframe?: string };
 type RecoveryConfig = {
   maxAdds: number; spacingPoints: number; lotMode: LotMode; lotMultiplier: number;
   preset?: RecoveryPreset; spacingMode?: "fixed" | "atr"; cooldownBars?: number;
   confirmationTimeframe?: string; trendFilter?: "ema_slope" | "ma_alignment";
   rangeSignal?: "band_reentry" | "boundary_rejection"; atrPeriod?: number;
   atrMultiplier?: number; pauseOnAtrExpansion?: boolean; maxWaitBars?: number;
+  orderRules?: AddOrderRule[];
 };
 type Strategy = {
   schemaVersion: 1; strategyType?: "gold_scalping_recovery"; name: string; symbol: string; timeframe: string; direction: Direction;
   entry: { type: Entry; fastPeriod: number; slowPeriod: number; maPeriod: number; rsiPeriod: number; rsiLow: number; rsiHigh: number };
   manage: { lotSize: number; maxPositions: number; mode?: "single" | "recovery"; recovery?: RecoveryConfig };
-  exit: { stopLossPips: number; takeProfitPips: number; basketStopLoss?: number; basketTakeProfit?: number };
+  exit: { stopLossPips: number; takeProfitPips: number; basketStopLoss?: number; basketTakeProfit?: number; closeRules?: ExitRule[] };
   protection: { maxSpreadPoints: number };
 };
 const defaults: Strategy = { schemaVersion: 1, strategyType: "gold_scalping_recovery", name: "Gold Scalping · Demo", symbol: "XAUUSD.v", timeframe: "M5", direction: "both", entry: { type: "ma_cross", fastPeriod: 20, slowPeriod: 50, maPeriod: 50, rsiPeriod: 14, rsiLow: 30, rsiHigh: 70 }, manage: { lotSize: 0.01, maxPositions: 1, mode: "single", recovery: { maxAdds: 3, spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "candle", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3 } }, exit: { stopLossPips: 30, takeProfitPips: 60, basketStopLoss: 0, basketTakeProfit: 0 }, protection: { maxSpreadPoints: 30 } };
@@ -32,6 +38,25 @@ const recoveryPresets: { id: RecoveryPreset; title: string; description: string;
   { id: "atr", title: "ATR ปรับระยะ", description: "ปรับระยะตามความผันผวนและพักเมื่อ ATR ขยาย", details: "ATR ใช้กำหนดระยะและเป็น volatility gate ไม่ได้บอกทิศทางราคา", signal: "ATR spacing + volatility pause" },
   { id: "manual", title: "ยืนยันด้วยตนเอง", description: "ระบบรอให้คุณยืนยันก่อนเปิดไม้แก้", details: "เมื่อเงื่อนไขที่เลือกผ่าน ระบบจะแสดงสถานะรอยืนยัน แทนการเปิดทันที", signal: "Manual confirmation" },
 ];
+const presetConditions: Record<Exclude<RecoveryPreset,"custom">, RecoveryConditionKind[]> = {
+  distance: [], candle: ["candle_reversal"], trend: ["trend_filter"],
+  range: ["range_reentry"], atr: ["atr_gate"], manual: ["manual_confirm"],
+};
+function newCondition(kind: RecoveryConditionKind): RecoveryCondition {
+  return { kind, timeframe: "same", period: kind === "rsi_recovery" || kind === "atr_gate" ? 14 : undefined, level: kind === "rsi_recovery" ? 30 : undefined, method: kind === "trend_filter" ? "ema_slope" : kind === "range_reentry" ? "band_reentry" : undefined };
+}
+function makeOrderRules(preset: RecoveryPreset, count: number): AddOrderRule[] {
+  const kinds = preset === "custom" ? [] : presetConditions[preset];
+  return Array.from({ length: count }, () => ({ logic: "all" as const, conditions: kinds.map(newCondition) }));
+}
+const exitRuleLabels: Record<ExitRuleKind, string> = {
+  average_target: "เป้ากำไรจากราคาเฉลี่ย", trailing_average: "Trailing จากราคาเฉลี่ย", partial_close: "ทยอยปิดบางส่วน",
+  time_limit: "ปิดเมื่อครบเวลา", signal_exit: "ปิดเมื่อสัญญาณกลับทิศ", manual_close: "รอผู้ใช้สั่งปิด",
+};
+const conditionLabels: Record<RecoveryConditionKind, string> = {
+  candle_reversal: "แท่งกลับตัว / Rejection", trend_filter: "Trend Filter", range_reentry: "กลับเข้ากรอบ Sideway",
+  atr_gate: "ATR / Volatility Gate", rsi_recovery: "RSI กลับผ่านระดับ", manual_confirm: "ผู้ใช้กดยืนยัน",
+};
 const choices: { id: Entry; title: string; label: string; description: string }[] = [
   { id: "ma_cross", title: "เส้นค่าเฉลี่ยตัดกัน", label: "MOVING AVERAGE CROSS", description: "ดูจังหวะที่เส้นเร็วตัดเส้นช้า เพื่อจับการเปลี่ยนทิศทาง" },
   { id: "price_ma", title: "ราคาตัดเส้นค่าเฉลี่ย", label: "PRICE CROSSES MA", description: "รอให้ราคาปิดข้ามเส้นค่าเฉลี่ย เพื่อดูการเปลี่ยนฝั่งของราคา" },
@@ -50,14 +75,18 @@ function recoveryPreset(s: Strategy): RecoveryPreset { return s.manage.recovery?
 function normalizeStrategy(s: Strategy): Strategy {
   if (s.strategyType === "gold_scalping_recovery") {
     const recovery: RecoveryConfig = { maxAdds: 3, spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "distance", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, ...s.manage.recovery };
+    recovery.orderRules ??= makeOrderRules(recovery.preset ?? "distance", recovery.maxAdds);
     return { ...s, manage: { ...s.manage, mode: s.manage.mode ?? (recovery.maxAdds ? "recovery" : "single"), recovery } };
   }
   if (s.manage.mode !== undefined || s.manage.recovery !== undefined) {
     if (!s.manage.recovery) return s;
-    return { ...s, manage: { ...s.manage, recovery: { preset: "distance", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, ...s.manage.recovery } } };
+    const recovery: RecoveryConfig = { preset: "distance", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, ...s.manage.recovery };
+    recovery.orderRules ??= makeOrderRules(recovery.preset ?? "distance", recovery.maxAdds);
+    return { ...s, manage: { ...s.manage, recovery } };
   }
   if (s.manage.maxPositions > 4) return s;
   const recovery: RecoveryConfig = { maxAdds: Math.max(0, s.manage.maxPositions - 1), spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "distance", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3 };
+  recovery.orderRules = makeOrderRules("distance", recovery.maxAdds);
   return { ...s, manage: { ...s.manage, recovery } };
 }
 function validDraft(s: Strategy): string | null {
@@ -66,6 +95,7 @@ function validDraft(s: Strategy): string | null {
   if (s.entry.type === "ma_cross" && s.entry.fastPeriod >= s.entry.slowPeriod) return "จำนวนช่วงของเส้นเร็วต้องน้อยกว่าเส้นช้า";
   if (!(s.entry.rsiLow > 0 && s.entry.rsiLow < s.entry.rsiHigh && s.entry.rsiHigh < 100)) return "ระดับ RSI ต้องมากกว่า 0 และน้อยกว่า 100 โดยระดับต่ำต้องน้อยกว่าระดับสูง";
   if (![s.manage.lotSize,s.protection.maxSpreadPoints].every(n => Number.isFinite(n) && n > 0)) return "Lot เริ่มต้นและ spread สูงสุดต้องมากกว่า 0";
+  if (s.exit.closeRules && (!Array.isArray(s.exit.closeRules) || s.exit.closeRules.some(rule => !Object.keys(exitRuleLabels).includes(rule.kind) || (rule.value !== undefined && (!Number.isFinite(rule.value) || rule.value < 0)) || (rule.secondaryValue !== undefined && (!Number.isFinite(rule.secondaryValue) || rule.secondaryValue < 0))))) return "ตรวจสอบวิธีปิดเพิ่มเติมในขั้น Exit";
   if (hasManageOptions(s)) {
     const recovery = s.manage.recovery;
     if (s.manage.mode !== undefined && !["single","recovery"].includes(s.manage.mode)) return "เลือกรูปแบบการจัดการไม้ก่อนบันทึก";
@@ -74,7 +104,7 @@ function validDraft(s: Strategy): string | null {
       if (![s.exit.stopLossPips,s.exit.takeProfitPips].every(n => Number.isFinite(n) && n > 0)) return "Stop Loss และ Take Profit ต้องมากกว่า 0";
     } else {
       if (!recovery || !Number.isInteger(recovery.maxAdds) || recovery.maxAdds < 1 || recovery.maxAdds > 3) return "เลือกจำนวนไม้แก้ตั้งแต่ 1 ถึง 3 ไม้";
-      if (!recoveryPresets.some(p => p.id === (recovery.preset ?? "distance"))) return "เลือกรูปแบบการเข้าไม้แก้ก่อนบันทึก";
+      if (recovery.preset !== "custom" && !recoveryPresets.some(p => p.id === (recovery.preset ?? "distance"))) return "เลือกรูปแบบการเข้าไม้แก้ก่อนบันทึก";
       if (s.manage.maxPositions !== recovery.maxAdds + 1) return "จำนวนไม้รวมต้องเท่ากับไม้แรกบวกจำนวนไม้แก้";
       if (!Number.isFinite(recovery.spacingPoints) || recovery.spacingPoints < 0) return "ระยะเพิ่มไม้ต้องเป็น 0 หรือจำนวน points ที่มากกว่า 0";
       if (recovery.lotMode === "multiplier" && (!Number.isFinite(recovery.lotMultiplier) || recovery.lotMultiplier < 1)) return "ตัวคูณ lot ต้องไม่น้อยกว่า 1";
@@ -91,6 +121,11 @@ function valid(s: Strategy): string | null {
   if (usesBasketExit(s) && s.manage.recovery?.spacingMode !== "atr" && s.manage.recovery?.maxAdds && s.manage.recovery.spacingPoints <= 0) return "กำหนดระยะสวนทางก่อนเพิ่มไม้เป็น points ก่อนแชร์ Strategy";
   if (usesBasketExit(s)) {
     if ((s.exit.basketStopLoss ?? 0) <= 0 || (s.exit.basketTakeProfit ?? 0) <= 0) return "กำหนด Basket Stop Loss และ Basket Take Profit ก่อนแชร์ Strategy";
+    for (const rule of s.exit.closeRules ?? []) {
+      if ((rule.kind === "average_target" || rule.kind === "partial_close" || rule.kind === "time_limit") && (rule.value ?? 0) <= 0) return `กรอกค่าของวิธี “${exitRuleLabels[rule.kind]}” ก่อนแชร์ Strategy`;
+      if (rule.kind === "partial_close" && (rule.value ?? 0) > 100) return "สัดส่วนปิดบางส่วนต้องไม่เกิน 100%";
+      if (rule.kind === "trailing_average" && ((rule.value ?? 0) <= 0 || (rule.secondaryValue ?? 0) <= 0)) return "กรอกระยะเริ่ม Trailing และระยะตามราคาให้ครบก่อนแชร์ Strategy";
+    }
   }
   return null;
 }
@@ -102,7 +137,7 @@ function isDraft(value: unknown): value is Strategy {
 
 export default function Builder() {
   const [step, setStep] = useState(0);
-  const [strategy, setStrategy] = useState<Strategy>(defaults);
+  const [strategy, setStrategy] = useState<Strategy>(() => normalizeStrategy(defaults));
   const [notice, setNotice] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [strategyId, setStrategyId] = useState<string | null>(null);
@@ -158,7 +193,54 @@ export default function Builder() {
     } catch {setNotice("บันทึกลงบัญชีไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองอีกครั้ง");} finally {setRemoteBusy(false);}
   }
   const updateEntry = (key: keyof Strategy["entry"], value: string | number) => setStrategy(s => ({ ...s, entry: { ...s.entry, [key]: value } }));
-  const updateRecovery = (patch: Partial<RecoveryConfig>) => setStrategy(s => ({ ...s, manage: { ...s.manage, recovery: { maxAdds: 3, spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "candle", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, ...s.manage.recovery, ...patch } } }));
+  const updateRecovery = (patch: Partial<RecoveryConfig>) => setStrategy(s => {
+    const current: RecoveryConfig = { maxAdds: 3, spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "candle", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, ...s.manage.recovery };
+    const next: RecoveryConfig = { ...current, ...patch };
+    if (patch.maxAdds !== undefined) {
+      const rules = [...(next.orderRules ?? makeOrderRules(next.preset ?? "distance", next.maxAdds))];
+      while (rules.length < next.maxAdds) rules.push({ logic: "all", conditions: (next.preset === "custom" ? [] : presetConditions[next.preset ?? "distance"]).map(newCondition) });
+      next.orderRules = rules.slice(0, next.maxAdds);
+    }
+    return { ...s, manage: { ...s.manage, ...(patch.maxAdds !== undefined ? { maxPositions: patch.maxAdds + 1 } : {}), recovery: next } };
+  });
+  const selectRecoveryPreset = (preset: RecoveryPreset) => {
+    const count = strategy.manage.recovery?.maxAdds ?? 3;
+    updateRecovery({ preset, orderRules: makeOrderRules(preset, count), ...(preset === "atr" ? { spacingMode: "atr" } : {}) });
+  };
+  const updateOrderRule = (orderIndex: number, patch: Partial<AddOrderRule>) => setStrategy(s => {
+    const recovery = s.manage.recovery;
+    if (!recovery) return s;
+    const orderRules = [...(recovery.orderRules ?? makeOrderRules(recovery.preset ?? "distance", recovery.maxAdds))];
+    orderRules[orderIndex] = { ...orderRules[orderIndex], ...patch };
+    return { ...s, manage: { ...s.manage, recovery: { ...recovery, orderRules } } };
+  });
+  const updateOrderCondition = (orderIndex: number, conditionIndex: number, condition: RecoveryCondition) => setStrategy(s => {
+    const recovery = s.manage.recovery;
+    if (!recovery) return s;
+    const orderRules = [...(recovery.orderRules ?? makeOrderRules(recovery.preset ?? "distance", recovery.maxAdds))];
+    const rule = orderRules[orderIndex];
+    orderRules[orderIndex] = { ...rule, conditions: rule.conditions.map((item, index) => index === conditionIndex ? condition : item) };
+    return { ...s, manage: { ...s.manage, recovery: { ...recovery, orderRules } } };
+  });
+  const addOrderCondition = (orderIndex: number) => setStrategy(s => {
+    const recovery = s.manage.recovery;
+    if (!recovery) return s;
+    const orderRules = [...(recovery.orderRules ?? makeOrderRules(recovery.preset ?? "distance", recovery.maxAdds))];
+    const rule = orderRules[orderIndex];
+    orderRules[orderIndex] = { ...rule, conditions: [...rule.conditions, newCondition("candle_reversal")] };
+    return { ...s, manage: { ...s.manage, recovery: { ...recovery, orderRules } } };
+  });
+  const removeOrderCondition = (orderIndex: number, conditionIndex: number) => setStrategy(s => {
+    const recovery = s.manage.recovery;
+    if (!recovery) return s;
+    const orderRules = [...(recovery.orderRules ?? makeOrderRules(recovery.preset ?? "distance", recovery.maxAdds))];
+    const rule = orderRules[orderIndex];
+    orderRules[orderIndex] = { ...rule, conditions: rule.conditions.filter((_, index) => index !== conditionIndex) };
+    return { ...s, manage: { ...s.manage, recovery: { ...recovery, orderRules } } };
+  });
+  const updateExitRule = (index: number, patch: Partial<ExitRule>) => setStrategy(s => ({ ...s, exit: { ...s.exit, closeRules: (s.exit.closeRules ?? []).map((rule, ruleIndex) => ruleIndex === index ? { ...rule, ...patch } : rule) } }));
+  const addExitRule = () => setStrategy(s => ({ ...s, exit: { ...s.exit, closeRules: [...(s.exit.closeRules ?? []), { kind: "average_target", value: 0 }] } }));
+  const removeExitRule = (index: number) => setStrategy(s => ({ ...s, exit: { ...s.exit, closeRules: (s.exit.closeRules ?? []).filter((_, ruleIndex) => ruleIndex !== index) } }));
   const summary = strategy.entry.type === "ma_cross" ? `SMA ${strategy.entry.fastPeriod} ตัด SMA ${strategy.entry.slowPeriod}` : strategy.entry.type === "price_ma" ? `ราคาปิดตัด SMA ${strategy.entry.maPeriod}` : `RSI ${strategy.entry.rsiPeriod} กลับผ่าน ${strategy.entry.rsiLow} / ${strategy.entry.rsiHigh}`;
   function save() {
     const error = validDraft(strategy); if (error) { setNotice(error); return; }
@@ -191,30 +273,51 @@ export default function Builder() {
             <div className="settings-box"><div className="settings-title">ค่าที่ใช้ร่วมกัน <span>ใช้ทั้ง Simple และ Recovery</span></div><div className="field-grid">{field("Lot เริ่มต้น",strategy.manage.lotSize,n=>setStrategy(s=>({...s,manage:{...s.manage,lotSize:n}})),"lot",0.01,0.01)}</div><p className="signal-explanation">Lot เริ่มต้นใช้กับไม้แรก · ขนาด lot ที่ใช้ได้จริงขึ้นอยู่กับข้อกำหนดของโบรกเกอร์และสินทรัพย์</p>
               {manageMode(strategy) === "single" ? <div className="mode-detail-note">Simple เปิดได้ครั้งละ 1 ไม้ ไม่เพิ่มไม้แก้ · ตั้ง TP/SL ของไม้ได้ในขั้น Exit</div> : <>
                 <div className="recovery-preset-heading"><div><strong>เลือกชุด Recovery</strong><small>คลิกชุดที่ต้องการ แล้วปรับรายละเอียดด้านล่างได้</small></div><span>6 ชุด</span></div>
-                <div className="recovery-preset-grid" role="group" aria-label="ชุดจัดการไม้แก้">{recoveryPresets.map((preset,index)=><button key={preset.id} type="button" className={`recovery-preset-card ${recoveryPreset(strategy)===preset.id?"selected":""}`} aria-pressed={recoveryPreset(strategy)===preset.id} onClick={()=>updateRecovery({preset:preset.id,...(preset.id==="atr"?{spacingMode:"atr"}:{})})}><span className="preset-number">0{index+1}</span><span className="preset-radio"/><strong>{preset.title}</strong><small>{preset.description}</small></button>)}</div>
-                {(() => { const preset=recoveryPresets.find(item=>item.id===recoveryPreset(strategy)) ?? recoveryPresets[0]; const recovery=strategy.manage.recovery!; return <div className="preset-details"><div className="preset-details-heading"><span className="panel-tag">SELECTED · {preset.signal.toUpperCase()}</span><h3>{preset.title}</h3><p>{preset.details}</p></div>
-                  <div className="field-grid recovery-fields"><label className="builder-field"><span>จำนวนไม้แก้สูงสุด</span><span className="input-wrap"><select value={recovery.maxAdds} onChange={e=>{const maxAdds=num(e.target.value);updateRecovery({maxAdds});setStrategy(s=>({...s,manage:{...s.manage,maxPositions:maxAdds+1}}));}}><option value={1}>1 ไม้เพิ่ม</option><option value={2}>2 ไม้เพิ่ม</option><option value={3}>3 ไม้เพิ่ม</option></select></span></label><label className="builder-field"><span>วิธีคำนวณระยะ</span><span className="input-wrap"><select value={recovery.spacingMode??"fixed"} onChange={e=>updateRecovery({spacingMode:e.target.value as "fixed"|"atr"})}><option value="fixed">ระยะคงที่</option><option value="atr">อิง ATR</option></select></span></label>{recovery.spacingMode!=="atr"&&field("ระยะสวนทางก่อนเพิ่ม",recovery.spacingPoints,n=>updateRecovery({spacingPoints:n}),"points",0,1)}</div>
+                <div className="recovery-preset-grid" role="group" aria-label="ชุดจัดการไม้แก้">{recoveryPresets.map((preset,index)=><button key={preset.id} type="button" className={`recovery-preset-card ${recoveryPreset(strategy)===preset.id?"selected":""}`} aria-pressed={recoveryPreset(strategy)===preset.id} onClick={()=>selectRecoveryPreset(preset.id)}><span className="preset-number">0{index+1}</span><span className="preset-radio"/><strong>{preset.title}</strong><small>{preset.description}</small></button>)}</div>
+                <button type="button" className={`custom-recovery-button ${recoveryPreset(strategy)==="custom"?"selected":""}`} aria-pressed={recoveryPreset(strategy)==="custom"} onClick={()=>selectRecoveryPreset("custom")}><span>＋</span><span><strong>สร้างชุดเอง</strong><small>เริ่มจากเงื่อนไขพื้นฐาน แล้วเพิ่มหรือแก้กติกาของไม้แก้แต่ละลำดับ</small></span></button>
+                {(() => { const presetId=recoveryPreset(strategy); const preset=recoveryPresets.find(item=>item.id===presetId); const recovery=strategy.manage.recovery!; const presetTitle=preset?.title??"ชุดที่สร้างเอง"; const presetSignal=preset?.signal??"CUSTOM ENTRY RULES"; const presetDetails=preset?.details??"ปรับเงื่อนไขของไม้แก้แต่ละลำดับได้อย่างอิสระ และบันทึกเป็น Strategy ส่วนตัวหรือแชร์ใน Explore"; return <div className="preset-details"><div className="preset-details-heading"><span className="panel-tag">SELECTED · {presetSignal.toUpperCase()}</span><h3>{presetTitle}</h3><p>{presetDetails}</p></div>
+                  <div className="field-grid recovery-fields"><label className="builder-field"><span>จำนวนไม้แก้สูงสุด</span><span className="input-wrap"><select value={recovery.maxAdds} onChange={e=>updateRecovery({maxAdds:num(e.target.value)})}><option value={1}>1 ไม้เพิ่ม</option><option value={2}>2 ไม้เพิ่ม</option><option value={3}>3 ไม้เพิ่ม</option></select></span></label><label className="builder-field"><span>วิธีคำนวณระยะ</span><span className="input-wrap"><select value={recovery.spacingMode??"fixed"} onChange={e=>updateRecovery({spacingMode:e.target.value as "fixed"|"atr"})}><option value="fixed">ระยะคงที่</option><option value="atr">อิง ATR</option></select></span></label>{recovery.spacingMode!=="atr"&&field("ระยะสวนทางก่อนเพิ่ม",recovery.spacingPoints,n=>updateRecovery({spacingPoints:n}),"points",0,1)}</div>
                   {recovery.spacingMode==="atr"&&<div className="field-grid recovery-fields">{field("ATR period",recovery.atrPeriod??14,n=>updateRecovery({atrPeriod:n}),"แท่ง",1)}{field("ตัวคูณ ATR",recovery.atrMultiplier??1,n=>updateRecovery({atrMultiplier:n}),"×",0.1,0.1)}</div>}
-                  {(preset.id==="candle"||preset.id==="trend"||preset.id==="range")&&<div className="field-grid recovery-fields"><label className="builder-field"><span>{preset.id==="candle"?"Timeframe ยืนยัน":preset.id==="trend"?"Timeframe Trend Filter":"Timeframe ของกรอบ"}</span><span className="input-wrap"><select value={recovery.confirmationTimeframe??"same"} onChange={e=>updateRecovery({confirmationTimeframe:e.target.value})}><option value="same">ใช้ timeframe ของ Strategy</option><option value="M15">M15</option><option value="H1">H1</option><option value="H4">H4</option></select></span></label>
-                    {preset.id==="trend"&&<label className="builder-field"><span>วิธีอ่าน Trend</span><span className="input-wrap"><select value={recovery.trendFilter??"ema_slope"} onChange={e=>updateRecovery({trendFilter:e.target.value as "ema_slope"|"ma_alignment"})}><option value="ema_slope">ทิศทางความชัน EMA</option><option value="ma_alignment">เส้นค่าเฉลี่ยเรียงตัว</option></select></span></label>}
-                    {preset.id==="range"&&<label className="builder-field"><span>สัญญาณกลับเข้ากรอบ</span><span className="input-wrap"><select value={recovery.rangeSignal??"band_reentry"} onChange={e=>updateRecovery({rangeSignal:e.target.value as "band_reentry"|"boundary_rejection"})}><option value="band_reentry">ราคาปิดกลับเข้าช่อง</option><option value="boundary_rejection">ปฏิเสธบริเวณขอบกรอบ</option></select></span></label>}
-                  </div>}
-                  {preset.id==="atr"&&<label className="preset-check"><input type="checkbox" checked={recovery.pauseOnAtrExpansion??true} onChange={e=>updateRecovery({pauseOnAtrExpansion:e.target.checked})}/><span><strong>พักการเพิ่มไม้เมื่อ ATR ขยายเร็ว</strong><small>ตัวเลือกนี้เป็นตัวกรองความผันผวน ไม่ได้ทำนายทิศทางราคา</small></span></label>}
-                  {preset.id==="manual"&&<div className="field-grid recovery-fields">{field("ยกเลิกคำขอหลัง",recovery.maxWaitBars??3,n=>updateRecovery({maxWaitBars:n}),"แท่ง",1)}</div>}
+                  {presetId==="atr"&&<label className="preset-check"><input type="checkbox" checked={recovery.pauseOnAtrExpansion??true} onChange={e=>updateRecovery({pauseOnAtrExpansion:e.target.checked})}/><span><strong>พักการเพิ่มไม้เมื่อ ATR ขยายเร็ว</strong><small>ตัวเลือกนี้เป็นตัวกรองความผันผวน ไม่ได้ทำนายทิศทางราคา</small></span></label>}
+                  {presetId==="manual"&&<div className="field-grid recovery-fields">{field("ยกเลิกคำขอหลัง",recovery.maxWaitBars??3,n=>updateRecovery({maxWaitBars:n}),"แท่ง",1)}</div>}
                   <div className="field-grid recovery-fields">{field("Cooldown ระหว่างไม้แก้",recovery.cooldownBars??1,n=>updateRecovery({cooldownBars:n}),"แท่ง",1)}</div>
-                  <details className="advanced-settings"><summary>ปรับแต่งขั้นสูง · รูปแบบ Lot และทางออก</summary><div className="field-grid"><label className="builder-field"><span>ขนาด Lot ของไม้แก้</span><span className="input-wrap"><select value={recovery.lotMode} onChange={e=>updateRecovery({lotMode:e.target.value as LotMode})}><option value="fixed">เท่ากับ Lot เริ่มต้น</option><option value="multiplier">คูณจากไม้ก่อนหน้า</option></select></span></label>{recovery.lotMode==="multiplier"&&field("ตัวคูณ Lot",recovery.lotMultiplier,n=>updateRecovery({lotMultiplier:n}),"×",1,0.1)}</div></details>
-                  <p className="signal-explanation">Recovery จะรอให้ครบทั้ง trigger ระยะและสัญญาณของชุดที่เลือก · ทุกชุดยังต้องผ่านจำนวนไม้สูงสุดและ Basket TP/SL</p>
+                  <details className="advanced-settings"><summary>ปรับแต่งขั้นสูง · รูปแบบ Lot</summary><div className="field-grid"><label className="builder-field"><span>ขนาด Lot ของไม้แก้</span><span className="input-wrap"><select value={recovery.lotMode} onChange={e=>updateRecovery({lotMode:e.target.value as LotMode})}><option value="fixed">เท่ากับ Lot เริ่มต้น</option><option value="multiplier">คูณจากไม้ก่อนหน้า</option></select></span></label>{recovery.lotMode==="multiplier"&&field("ตัวคูณ Lot",recovery.lotMultiplier,n=>updateRecovery({lotMultiplier:n}),"×",1,0.1)}</div></details>
+                  <p className="signal-explanation">Recovery จะรอให้ครบทั้ง trigger ระยะและ Safety Gate ก่อนเสมอ · Logic ALL/ANY ด้านล่างใช้กับสัญญาณเสริมเท่านั้น</p>
+                  <div className="order-rules-heading"><div><strong>เงื่อนไขเข้าไม้แก้แต่ละลำดับ</strong><small>แต่ละไม้มีเงื่อนไขแยกกัน และเลือกเพิ่มหลายข้อได้</small></div></div>
+                  <div className="add-order-rules">{Array.from({length:recovery.maxAdds},(_,orderIndex)=>{const rule=recovery.orderRules?.[orderIndex]??{logic:"all" as const,conditions:[]};return <details className="add-order-rule" key={orderIndex} open={orderIndex===0}><summary><span>ไม้แก้ {orderIndex+1}</span><small>{rule.conditions.length===0?"ใช้ระยะและ Safety Gate":`${rule.conditions.length} เงื่อนไข · ${rule.logic==="all"?"ต้องผ่านทั้งหมด":"ผ่านข้อใดข้อหนึ่ง"}`}</small></summary><div className="order-rule-body"><div className="field-grid"><label className="builder-field"><span>การรวมเงื่อนไขเสริม</span><span className="input-wrap"><select value={rule.logic} onChange={e=>updateOrderRule(orderIndex,{logic:e.target.value as "all"|"any"})}><option value="all">ALL · ต้องผ่านทุกข้อ</option><option value="any">ANY · ผ่านข้อใดก็ได้</option></select></span></label><div className="order-rule-required"><strong>เงื่อนไขบังคับ</strong><small>ระยะสวนทาง + Safety Gate</small></div></div>
+                    {rule.conditions.map((condition,conditionIndex)=><div className="recovery-condition" key={`${orderIndex}-${conditionIndex}`}><div className="condition-row-heading"><strong>Condition {conditionIndex+1}</strong><button type="button" className="remove-condition" onClick={()=>removeOrderCondition(orderIndex,conditionIndex)}>ลบ</button></div><div className="field-grid"><label className="builder-field"><span>เงื่อนไข</span><span className="input-wrap"><select value={condition.kind} onChange={e=>updateOrderCondition(orderIndex,conditionIndex,newCondition(e.target.value as RecoveryConditionKind))}>{Object.entries(conditionLabels).map(([kind,label])=><option key={kind} value={kind}>{label}</option>)}</select></span></label>
+                      {(condition.kind==="candle_reversal"||condition.kind==="trend_filter"||condition.kind==="range_reentry")&&<label className="builder-field"><span>Timeframe</span><span className="input-wrap"><select value={condition.timeframe??"same"} onChange={e=>updateOrderCondition(orderIndex,conditionIndex,{...condition,timeframe:e.target.value})}><option value="same">ใช้ timeframe ของ Strategy</option><option value="M15">M15</option><option value="H1">H1</option><option value="H4">H4</option></select></span></label>}
+                      {condition.kind==="trend_filter"&&<label className="builder-field"><span>วิธีกรอง Trend</span><span className="input-wrap"><select value={condition.method??"ema_slope"} onChange={e=>updateOrderCondition(orderIndex,conditionIndex,{...condition,method:e.target.value})}><option value="ema_slope">ความชัน EMA</option><option value="ma_alignment">เส้นค่าเฉลี่ยเรียงตัว</option></select></span></label>}
+                      {condition.kind==="range_reentry"&&<label className="builder-field"><span>รูปแบบสัญญาณ</span><span className="input-wrap"><select value={condition.method??"band_reentry"} onChange={e=>updateOrderCondition(orderIndex,conditionIndex,{...condition,method:e.target.value})}><option value="band_reentry">ราคาปิดกลับเข้าช่อง</option><option value="boundary_rejection">ปฏิเสธบริเวณขอบกรอบ</option></select></span></label>}
+                      {(condition.kind==="atr_gate"||condition.kind==="rsi_recovery")&&<>{field(condition.kind==="atr_gate"?"ATR period":"RSI period",condition.period??14,n=>updateOrderCondition(orderIndex,conditionIndex,{...condition,period:n}),"แท่ง",1)}{field(condition.kind==="atr_gate"?"ATR ratio threshold":"ระดับ RSI",condition.level??1,n=>updateOrderCondition(orderIndex,conditionIndex,{...condition,level:n}),condition.kind==="atr_gate"?"ratio":"ระดับ",0,0.1)}</>}
+                      {condition.kind==="candle_reversal"&&<label className="builder-field"><span>การยืนยัน</span><span className="input-wrap"><select value={condition.method??"close_reversal"} onChange={e=>updateOrderCondition(orderIndex,conditionIndex,{...condition,method:e.target.value})}><option value="close_reversal">รอแท่งปิดกลับทิศ</option><option value="rejection">แท่งปฏิเสธราคา</option></select></span></label>}
+                    </div></div>)}
+                    <button type="button" className="add-condition-button" onClick={()=>addOrderCondition(orderIndex)}>＋ เพิ่ม Condition ให้ไม้แก้ {orderIndex+1}</button>
+                  </div></details>})}</div>
                 </div>; })()}
               </>}
             </div><div className="builder-callout">ค่าที่แสดงเป็นจุดเริ่มต้นสำหรับปรับแต่งและทดสอบ · การเพิ่มไม้ขณะขาดทุนเพิ่ม exposure · EA ที่เชื่อมอยู่ยังเป็น Probe อ่านอย่างเดียว ไม่มีคำสั่งซื้อขายหรือ Backtest</div>
           </>}
-          {step === 2 && usesBasketExit(strategy) && <><div className="panel-heading"><span className="panel-tag">STEP 03 · EXIT</span><h2>ปิดทั้งชุดเมื่อถึงเป้า</h2><p>กำหนดกำไรเป้าหมายและขาดทุนสูงสุดรวมของทุกไม้ · ใช้สกุลเงินเดียวกับบัญชี MT5</p></div><div className="settings-box"><div className="field-grid">{field("ปิดทั้งชุดเมื่อกำไรถึง",strategy.exit.basketTakeProfit ?? 0,n=>setStrategy(s=>({...s,exit:{...s.exit,basketTakeProfit:n}})),"เงิน",0,0.01)}{field("ปิดทั้งชุดเมื่อขาดทุนถึง",strategy.exit.basketStopLoss ?? 0,n=>setStrategy(s=>({...s,exit:{...s.exit,basketStopLoss:n}})),"เงิน",0,0.01)}</div><p className="signal-explanation">กำหนดทั้งสองค่าเป็นจำนวนเงินมากกว่า 0 ก่อนแชร์ได้ · Stop Loss จะเป็นขอบเขตขาดทุนรวมของชุด ไม่ใช่ SL แยกรายออเดอร์</p></div></>}
+          {step === 2 && usesBasketExit(strategy) && <><div className="panel-heading"><span className="panel-tag">STEP 03 · EXIT</span><h2>เลือกวิธีปิดหรือคลายชุด</h2><p>ตั้งขีดจำกัด Basket TP/SL แล้วเพิ่มวิธีจัดการอื่นได้หลายข้อ · เงื่อนไขปิดเต็มชุดที่เกิดก่อนจะเป็นตัวปิดชุด</p></div><div className="settings-box"><div className="settings-title">ขีดจำกัดหลักของทั้งชุด <span>ใช้กับไม้แก้ทุกลำดับ</span></div><div className="field-grid">{field("ปิดทั้งชุดเมื่อกำไรถึง",strategy.exit.basketTakeProfit ?? 0,n=>setStrategy(s=>({...s,exit:{...s.exit,basketTakeProfit:n}})),"เงิน",0,0.01)}{field("ปิดทั้งชุดเมื่อขาดทุนถึง",strategy.exit.basketStopLoss ?? 0,n=>setStrategy(s=>({...s,exit:{...s.exit,basketStopLoss:n}})),"เงิน",0,0.01)}</div><p className="signal-explanation">Basket Stop Loss เป็นขอบเขตขาดทุนรวม ไม่ใช่ SL แยกรายออเดอร์ · กำหนด Basket TP/SL มากกว่า 0 ก่อนแชร์</p></div>
+            <div className="exit-rules-panel"><div className="order-rules-heading"><div><strong>วิธีปิดเพิ่มเติม</strong><small>เพิ่มได้หลายข้อ · เงื่อนไขปิดเต็มชุดใช้แบบข้อใดเกิดก่อน</small></div></div>
+              {(strategy.exit.closeRules??[]).map((rule,index)=><div className="exit-rule-card" key={`exit-${index}`}><div className="condition-row-heading"><strong>Exit Rule {index+1}</strong><button type="button" className="remove-condition" onClick={()=>removeExitRule(index)}>ลบ</button></div><label className="builder-field"><span>วิธีจัดการ</span><span className="input-wrap"><select value={rule.kind} onChange={e=>updateExitRule(index,{kind:e.target.value as ExitRuleKind,value:0,secondaryValue:0})}>{Object.entries(exitRuleLabels).map(([kind,label])=><option key={kind} value={kind}>{label}</option>)}</select></span></label>
+                {rule.kind==="average_target"&&<div className="field-grid exit-rule-fields">{field("เป้าจากราคาเฉลี่ย",rule.value??0,n=>updateExitRule(index,{value:n}),"points",0,1)}</div>}
+                {rule.kind==="trailing_average"&&<div className="field-grid exit-rule-fields">{field("เริ่มเลื่อนเมื่อกำไรถึง",rule.value??0,n=>updateExitRule(index,{value:n}),"points",0,1)}{field("ระยะตามราคา",rule.secondaryValue??0,n=>updateExitRule(index,{secondaryValue:n}),"points",0,1)}</div>}
+                {rule.kind==="partial_close"&&<div className="field-grid exit-rule-fields">{field("ปิดออกบางส่วน",rule.value??0,n=>updateExitRule(index,{value:n}),"%",1,1)}</div>}
+                {rule.kind==="time_limit"&&<div className="field-grid exit-rule-fields">{field("ถือชุดได้นานสูงสุด",rule.value??0,n=>updateExitRule(index,{value:n}),"ชั่วโมง",1,1)}</div>}
+                {rule.kind==="signal_exit"&&<div className="field-grid exit-rule-fields"><label className="builder-field"><span>Timeframe</span><span className="input-wrap"><select value={rule.timeframe??"same"} onChange={e=>updateExitRule(index,{timeframe:e.target.value})}><option value="same">ใช้ timeframe ของ Strategy</option><option value="M15">M15</option><option value="H1">H1</option><option value="H4">H4</option></select></span></label></div>}
+                {rule.kind==="manual_close"&&<p className="signal-explanation">ชุดจะรอให้ผู้ใช้สั่งปิดเอง · Basket Stop Loss ยังทำหน้าที่เป็นขีดจำกัดหลัก</p>}
+              </div>)}
+              <button type="button" className="add-condition-button" onClick={addExitRule}>＋ เพิ่มวิธีปิดหรือจัดการชุด</button>
+              <p className="signal-explanation">การปิดบางส่วนกับการปิดคู่/hedge ทำงานต่างกันตามประเภทบัญชี MT5; หน้านี้กำลังบันทึก config และยังไม่ส่งคำสั่งจริง</p>
+            </div>
+          </>}
           {step === 2 && !usesBasketExit(strategy) && <><div className="panel-heading"><span className="panel-tag">STEP 03 · EXIT</span><h2>ตั้ง TP และ SL ของไม้เดียว</h2><p>Simple เปิดออเดอร์ครั้งเดียวตาม Entry แล้วปิดเมื่อถึง Take Profit หรือ Stop Loss</p></div><div className="settings-box"><div className="field-grid">{field("Stop Loss",strategy.exit.stopLossPips,n=>setStrategy(s=>({...s,exit:{...s.exit,stopLossPips:n}})),"pips")}{field("Take Profit",strategy.exit.takeProfitPips,n=>setStrategy(s=>({...s,exit:{...s.exit,takeProfitPips:n}})),"pips")}</div><p className="signal-explanation">ค่า pip อาจต่างกันตามสัญลักษณ์และโบรกเกอร์ ควรตรวจสอบก่อนใช้งานจริง</p></div></>}
           {step === 3 && <><div className="panel-heading"><span className="panel-tag">STEP 04 · PROTECTION</span><h2>ตั้งขอบเขตก่อนเริ่ม</h2><p>จำกัด spread สูงสุดที่ยอมรับได้ก่อนเปิดไม้ใหม่</p></div><div className="settings-box"><div className="field-grid">{field("Spread สูงสุด",strategy.protection.maxSpreadPoints,n=>setStrategy(s=>({...s,protection:{...s.protection,maxSpreadPoints:n}})),"points")}</div><p className="signal-explanation">เมื่อ spread เกินค่านี้ กติกาที่ตั้งไว้จะไม่เปิดไม้ใหม่ · points เป็นหน่วยของโบรกเกอร์ ไม่ใช่ pips เสมอไป</p></div><div className="builder-callout">✳ Template นี้เก็บค่า config บนเว็บเท่านั้น ตอนนี้ EA ที่เชื่อมอยู่เป็น Connectivity Probe แบบอ่านอย่างเดียว ยังไม่ส่งคำสั่งซื้อขายหรือ Backtest</div></>}
           <div className="panel-actions"><button type="button" className="button-back" onClick={()=>{setStep(Math.max(0,step-1));setNotice("");}} disabled={step===0}>← ย้อนกลับ</button>{step < 3 ? <button type="button" className="button-next" onClick={()=>{setStep(step+1);setNotice("");}}>ขั้นตอนถัดไป <span>→</span></button> : <button type="button" className="button-next" onClick={save}>บันทึก Draft <span>✓</span></button>}</div>
           {notice && <p className="builder-notice" role="status">{notice}</p>}
         </section>
-      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DEMO DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M1</option><option>M5</option><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{hasManageOptions(strategy) ? manageMode(strategy) === "single" ? `${strategy.manage.lotSize} lot · Simple · 1 ไม้` : `${strategy.manage.lotSize} lot · ${recoveryPresets.find(p=>p.id===recoveryPreset(strategy))?.title ?? "Recovery"} · แก้ ${strategy.manage.recovery?.maxAdds ?? 0} ไม้` : `${strategy.manage.lotSize} lot · สูงสุด ${strategy.manage.maxPositions} ไม้`}</strong></div><div><span>03 <b>Exit</b></span><strong>{usesBasketExit(strategy) ? `Basket SL ${strategy.exit.basketStopLoss || "ยังไม่ตั้ง"} · TP ${strategy.exit.basketTakeProfit || "ยังไม่ตั้ง"}` : `SL ${strategy.exit.stopLossPips} / TP ${strategy.exit.takeProfitPips} pips`}</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><label className="publish-toggle"><input type="checkbox" checked={isPublic} onChange={e=>{if(e.target.checked){const error=valid(strategy);if(error){setNotice(error);return;}}setIsPublic(e.target.checked);}} /><span><strong>แชร์ใน Explore</strong><small>{valid(strategy) ? "กรอกเงื่อนไข Manage และ TP/SL ให้ครบก่อนแชร์" : "ทุกคนจะเห็นกติกานี้และคัดลอกได้ · ผล Backtest ยังไม่ผ่านการยืนยัน"}</small></span></label><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Draft ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link><Link href="/explore">Explore →</Link></div><div className="sidebar-foot"><span>✳</span><p>บันทึกเป็น Draft ได้โดยยังไม่กรอก TP/SL ครบ แต่การแชร์หรือส่งไป Backtest ยังทำไม่ได้ · EA ที่เชื่อมอยู่เป็น Probe อ่านอย่างเดียว{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
+      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DEMO DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M1</option><option>M5</option><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{hasManageOptions(strategy) ? manageMode(strategy) === "single" ? `${strategy.manage.lotSize} lot · Simple · 1 ไม้` : `${strategy.manage.lotSize} lot · ${recoveryPreset(strategy)==="custom"?"ชุด Custom":recoveryPresets.find(p=>p.id===recoveryPreset(strategy))?.title??"Recovery"} · แก้ ${strategy.manage.recovery?.maxAdds ?? 0} ไม้` : `${strategy.manage.lotSize} lot · สูงสุด ${strategy.manage.maxPositions} ไม้`}</strong></div><div><span>03 <b>Exit</b></span><strong>{usesBasketExit(strategy) ? `Basket SL ${strategy.exit.basketStopLoss || "ยังไม่ตั้ง"} · TP ${strategy.exit.basketTakeProfit || "ยังไม่ตั้ง"} · ${strategy.exit.closeRules?.length??0} วิธีเสริม` : `SL ${strategy.exit.stopLossPips} / TP ${strategy.exit.takeProfitPips} pips`}</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><label className="publish-toggle"><input type="checkbox" checked={isPublic} onChange={e=>{if(e.target.checked){const error=valid(strategy);if(error){setNotice(error);return;}}setIsPublic(e.target.checked);}} /><span><strong>แชร์ใน Explore</strong><small>{valid(strategy) ? "กรอกเงื่อนไข Manage และ TP/SL ให้ครบก่อนแชร์" : "ทุกคนจะเห็นกติกานี้และคัดลอกได้ · ผล Backtest ยังไม่ผ่านการยืนยัน"}</small></span></label><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Draft ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link><Link href="/explore">Explore →</Link></div><div className="sidebar-foot"><span>✳</span><p>บันทึกเป็น Draft ได้โดยยังไม่กรอก TP/SL ครบ แต่การแชร์หรือส่งไป Backtest ยังทำไม่ได้ · EA ที่เชื่อมอยู่เป็น Probe อ่านอย่างเดียว{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
       <p className="builder-footer">EASpaze · สร้างอย่างเข้าใจ ทดลองอย่างรอบคอบ</p>
     </main>
   </div>;
