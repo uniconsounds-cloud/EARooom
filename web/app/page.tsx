@@ -106,8 +106,8 @@ function ChartPreview() {
     <svg className="chart-svg" viewBox="0 0 540 240" fill="none" role="img" aria-label="ภาพตัวอย่างกราฟกลยุทธ์">
       <defs>
         <linearGradient id="chartFill" x1="270" y1="25" x2="270" y2="230" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#C7EC73" stopOpacity=".38" />
-          <stop offset="1" stopColor="#C7EC73" stopOpacity="0" />
+          <stop stopColor="#80DCD4" stopOpacity=".38" />
+          <stop offset="1" stopColor="#80DCD4" stopOpacity="0" />
         </linearGradient>
       </defs>
       {[52, 102, 152, 202].map((y) => (
@@ -119,12 +119,12 @@ function ChartPreview() {
       />
       <path
         d="M0 185C31 180 40 155 69 163C102 172 111 116 144 127C177 138 187 156 218 126C249 96 267 113 297 90C328 66 344 87 368 71C396 52 414 70 440 51C468 31 491 48 516 28C526 21 532 19 540 14"
-        stroke="#48552C"
+        stroke="#258D89"
         strokeLinecap="round"
         strokeWidth="3"
       />
-      <circle cx="440" cy="51" r="5" fill="#48552C" stroke="white" strokeWidth="3" />
-      <circle cx="516" cy="28" r="5" fill="#48552C" stroke="white" strokeWidth="3" />
+      <circle cx="440" cy="51" r="5" fill="#258D89" stroke="white" strokeWidth="3" />
+      <circle cx="516" cy="28" r="5" fill="#258D89" stroke="white" strokeWidth="3" />
     </svg>
   );
 }
@@ -324,7 +324,7 @@ export default function Home() {
             <article className="verification-card" id="performance-details">
               <div className="verification-top"><span className="verification-badge"><span>✓</span> PERFORMANCE PREVIEW</span><span className="verification-dots">•••</span></div>
               <div className="verification-title"><div><span className="mini-label">TEST REPORT · EXAMPLE VIEW</span><h3>Strategy performance</h3></div><span className="verify-check">✓</span></div>
-              <div className="verification-chart"><div className="chart-grid-lines"><i /><i /><i /><i /></div><svg viewBox="0 0 500 160" preserveAspectRatio="none" role="img" aria-label="ตัวอย่างกราฟผลทดสอบ"><path d="M0 127C38 130 50 108 82 115S129 134 158 100 202 82 224 90 257 63 286 72 324 49 351 58 389 32 418 42 460 20 500 19" fill="none" stroke="#B9E56A" strokeWidth="4" strokeLinecap="round" /><path d="M0 127C38 130 50 108 82 115S129 134 158 100 202 82 224 90 257 63 286 72 324 49 351 58 389 32 418 42 460 20 500 19V160H0Z" fill="url(#performanceFill)" /><defs><linearGradient id="performanceFill" x1="250" y1="15" x2="250" y2="160" gradientUnits="userSpaceOnUse"><stop stopColor="#B9E56A" stopOpacity=".24"/><stop offset="1" stopColor="#B9E56A" stopOpacity="0"/></linearGradient></defs></svg></div>
+              <div className="verification-chart"><div className="chart-grid-lines"><i /><i /><i /><i /></div><svg viewBox="0 0 500 160" preserveAspectRatio="none" role="img" aria-label="ตัวอย่างกราฟผลทดสอบ"><path d="M0 127C38 130 50 108 82 115S129 134 158 100 202 82 224 90 257 63 286 72 324 49 351 58 389 32 418 42 460 20 500 19" fill="none" stroke="#42C9BF" strokeWidth="4" strokeLinecap="round" /><path d="M0 127C38 130 50 108 82 115S129 134 158 100 202 82 224 90 257 63 286 72 324 49 351 58 389 32 418 42 460 20 500 19V160H0Z" fill="url(#performanceFill)" /><defs><linearGradient id="performanceFill" x1="250" y1="15" x2="250" y2="160" gradientUnits="userSpaceOnUse"><stop stopColor="#42C9BF" stopOpacity=".24"/><stop offset="1" stopColor="#42C9BF" stopOpacity="0"/></linearGradient></defs></svg></div>
               <div className="verification-source"><span className="source-check">✓</span><span>Source and test period shown with each report</span><span className="source-arrow">↗</span></div>
               <div className="verification-disclaimer">A verified label means the report source is checked. It does not guarantee future results.</div>
             </article>
