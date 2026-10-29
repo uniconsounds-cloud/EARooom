@@ -1,4 +1,4 @@
-# EA Rooom Web
+# EASpaze Web
 
 The community-first Next.js + TypeScript web app for building, testing, sharing, and exploring trading strategies.
 

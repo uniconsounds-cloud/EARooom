@@ -141,9 +141,9 @@ export default function Home() {
       </div>
 
       <header className="site-header">
-        <Link href="#top" className="brand" aria-label="EA Rooom home">
+        <Link href="#top" className="brand" aria-label="EASpaze home">
           <BrandMark />
-          <span className="brand-name">EA Rooom<span className="brand-period">.</span></span>
+          <span className="brand-name">EASpaze<span className="brand-period">.</span></span>
         </Link>
         <nav className="desktop-nav" aria-label="Main navigation">
           {navLinks.map((link) => (
@@ -364,10 +364,10 @@ export default function Home() {
 
       <footer className="site-footer" id="join-community">
         <div className="section-shell footer-main">
-          <div className="footer-brand-block"><Link href="#top" className="brand"><BrandMark /><span className="brand-name">EA Rooom<span className="brand-period">.</span></span></Link><p>A friendly home for trading ideas<br />and strategies that grow together.</p></div>
+          <div className="footer-brand-block"><Link href="#top" className="brand"><BrandMark /><span className="brand-name">EASpaze<span className="brand-period">.</span></span></Link><p>A friendly home for trading ideas<br />and strategies that grow together.</p></div>
           <div className="footer-links"><div><span>EXPLORE</span><Link href="#trending">Strategies</Link><Link href="#creators">Creators</Link></div><div><span>CREATE</span><Link href="#builder">Strategy Builder</Link><Link href="#performance">Backtest</Link></div><div><span>EA ROOOM</span><Link href="#community">Our community</Link><Link href="#pricing">Get started</Link></div></div>
         </div>
-        <div className="section-shell footer-bottom"><span>© 2026 EA Rooom. Built for curious minds.</span><span>Trading involves risk. Learn, test, and choose carefully.</span></div>
+        <div className="section-shell footer-bottom"><span>© 2026 EASpaze. Built for curious minds.</span><span>Trading involves risk. Learn, test, and choose carefully.</span></div>
       </footer>
     </>
   );
