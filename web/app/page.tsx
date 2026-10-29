@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AuthNav from "./auth-nav";
 
 const navLinks = [
   { label: "Explore", href: "/explore" },
@@ -152,14 +153,7 @@ export default function Home() {
             </Link>
           ))}
         </nav>
-        <div className="header-actions">
-          <Link href="/account" className="sign-in-link">
-            เข้าสู่ระบบ
-          </Link>
-          <Link href="/build" className="header-cta">
-            เริ่มสร้าง <ArrowIcon />
-          </Link>
-        </div>
+        <AuthNav />
       </header>
 
       <main id="top">
