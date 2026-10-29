@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const navLinks = [
   { label: "Explore", href: "#trending" },
-  { label: "Build", href: "#builder" },
+  { label: "Build", href: "/build" },
   { label: "My Strategies", href: "#community" },
   { label: "Backtest", href: "#performance" },
   { label: "Community", href: "#creators" },
@@ -156,7 +156,7 @@ export default function Home() {
           <Link href="#sign-in" className="sign-in-link">
             เข้าสู่ระบบ
           </Link>
-          <Link href="#builder" className="header-cta">
+          <Link href="/build" className="header-cta">
             เริ่มสร้าง <ArrowIcon />
           </Link>
         </div>
@@ -175,7 +175,7 @@ export default function Home() {
               แล้วเรียนรู้ต่อจากชุมชนที่พร้อมแบ่งปัน
             </p>
             <div className="hero-actions">
-              <Link href="#builder" className="button button-primary">
+              <Link href="/build" className="button button-primary">
                 สร้าง Strategy ฟรี <ArrowIcon />
               </Link>
               <Link href="#trending" className="button button-secondary">
@@ -302,7 +302,7 @@ export default function Home() {
             <div className="eyebrow"><span className="eyebrow-dot" /> FROM IDEA TO COMMUNITY</div>
             <h2>Build. Test.<br /><span>Run. Share.</span></h2>
             <p>พื้นที่เดียวที่ให้ไอเดียของคุณเดินทางต่อได้ ตั้งแต่เริ่มวางแผน ทดลองบน MT5 ไปจนถึงแบ่งปันให้คนอื่นได้เรียนรู้</p>
-            <Link href="#builder" className="button button-dark">เริ่มจากไอเดียของคุณ <ArrowIcon /></Link>
+            <Link href="/build" className="button button-dark">เริ่มจากไอเดียของคุณ <ArrowIcon /></Link>
           </div>
           <div className="flow-visual">
             <div className="flow-rail" aria-hidden="true"><span /><span /><span /><span /></div>
@@ -357,7 +357,7 @@ export default function Home() {
           <div className="eyebrow"><span className="eyebrow-dot" /> YOUR NEXT STEP</div>
           <h2>มีไอเดียอยู่แล้วใช่ไหม?</h2>
           <p>เริ่มสร้าง Strategy ฟรี แล้วค่อย ๆ เรียนรู้ไปพร้อมชุมชน</p>
-          <div className="pricing-actions"><Link href="#builder" className="button button-primary">สร้าง Strategy ฟรี <ArrowIcon /></Link><Link href="#trending" className="button button-secondary">ดู Strategy ยอดนิยม</Link></div>
+          <div className="pricing-actions"><Link href="/build" className="button button-primary">สร้าง Strategy ฟรี <ArrowIcon /></Link><Link href="#trending" className="button button-secondary">ดู Strategy ยอดนิยม</Link></div>
           <span className="pricing-footnote">ชัดเจน เรียนรู้ได้ และเป็นสไตล์ของคุณ</span>
         </section>
       </main>
@@ -365,7 +365,7 @@ export default function Home() {
       <footer className="site-footer" id="join-community">
         <div className="section-shell footer-main">
           <div className="footer-brand-block"><Link href="#top" className="brand"><BrandMark /><span className="brand-name">EASpaze<span className="brand-period">.</span></span></Link><p>A friendly home for trading ideas<br />and strategies that grow together.</p></div>
-          <div className="footer-links"><div><span>EXPLORE</span><Link href="#trending">Strategies</Link><Link href="#creators">Creators</Link></div><div><span>CREATE</span><Link href="#builder">Strategy Builder</Link><Link href="#performance">Backtest</Link></div><div><span>EA ROOOM</span><Link href="#community">Our community</Link><Link href="#pricing">Get started</Link></div></div>
+          <div className="footer-links"><div><span>EXPLORE</span><Link href="#trending">Strategies</Link><Link href="#creators">Creators</Link></div><div><span>CREATE</span><Link href="/build">Strategy Builder</Link><Link href="#performance">Backtest</Link></div><div><span>EA ROOOM</span><Link href="#community">Our community</Link><Link href="#pricing">Get started</Link></div></div>
         </div>
         <div className="section-shell footer-bottom"><span>© 2026 EASpaze. Built for curious minds.</span><span>Trading involves risk. Learn, test, and choose carefully.</span></div>
       </footer>
