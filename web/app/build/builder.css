@@ -13,3 +13,14 @@
 .advanced-settings summary {cursor:pointer;color:#594bc7;font-size:11px;font-weight:700}
 .advanced-settings .field-grid {margin-top:14px}
 .input-wrap select {width:100%;min-width:0;padding:10px 11px;border:0;border-radius:8px;outline-color:#6c5ce7;background:transparent;color:#222a42;font-size:12px;font-weight:700}
+.manage-mode-options {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
+.manage-mode-options button {display:flex;align-items:flex-start;gap:11px;padding:14px;text-align:left;border:1px solid #e3e7ef;border-radius:10px;background:#fff;color:#303953;cursor:pointer}
+.manage-mode-options button.selected {border-color:#8172e8;background:#f7f6ff;box-shadow:0 0 0 1px #8172e8}
+.manage-mode-options button strong,.manage-mode-options button small {display:block}
+.manage-mode-options button strong {font-size:12px}
+.manage-mode-options button small {margin-top:5px;color:#858a9a;font-size:10px;line-height:1.5}
+.mode-indicator {width:16px;height:16px;flex:none;border:1px solid #cbd0dd;border-radius:50%;margin-top:1px}
+.manage-mode-options button.selected .mode-indicator {border:5px solid #6c5ce7;background:#fff}
+.recovery-fields {margin-top:17px}
+.mode-detail-note {margin-top:14px;padding:12px;border-radius:8px;background:#eef8f7;color:#39716f;font-size:11px;line-height:1.6}
+@media(max-width:580px){.manage-mode-options{grid-template-columns:1fr}}
