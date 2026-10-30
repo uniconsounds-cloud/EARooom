@@ -49,6 +49,25 @@
 .preset-check strong {font-size:11px;color:#49516a}
 .preset-check small {margin-top:4px;color:#858a9a;font-size:9px;line-height:1.5}
 .two-stage-entry {margin-top:20px;padding:17px;border:1px solid #e4e2f4;border-radius:11px;background:linear-gradient(145deg,#faf9ff,#fff)}
+.entry-condition-group {padding:15px;border:1px solid #e6e7f0;border-radius:10px;background:#fff}
+.entry-group-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.entry-group-heading h3 {margin:4px 0;color:#252d43;font-size:14px}
+.entry-group-heading p {margin:0;color:#858a9a;font-size:10px;line-height:1.55}
+.entry-group-heading .phase-label {margin:0}
+.module-count {flex:none;padding:5px 8px;border-radius:999px;background:#f0effb;color:#6457ca;font-size:9px;font-weight:750}
+.entry-group-logic {max-width:300px;margin-top:12px}
+.entry-module-list {display:grid;gap:9px;margin-top:11px}
+.entry-module-card {padding:12px;border:1px solid #e8eaf1;border-radius:9px;background:#fbfcff}
+.entry-module-card .condition-row-heading {align-items:flex-start}
+.entry-module-card .condition-row-heading strong,.entry-module-card .condition-row-heading small {display:block}
+.entry-module-card .condition-row-heading strong {font-size:11px}
+.entry-module-card .condition-row-heading small {margin-top:3px;color:#9298a8;font-size:9px}
+.entry-module-card .field-grid {margin-top:10px}
+.module-hint {margin:9px 0 0;color:#7e8799;font-size:9px;line-height:1.55}
+.entry-module-adder {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f5}
+.entry-module-adder .add-condition-button {width:auto;min-width:160px;margin:0}
+.entry-group-connector {margin:10px 0 12px;padding-left:10px}
+@media(max-width:580px){.entry-condition-group{padding:12px}.entry-module-adder{grid-template-columns:1fr}.entry-module-adder .add-condition-button{width:100%}}
 .two-stage-heading {display:flex;flex-direction:column;gap:4px;padding-bottom:13px;border-bottom:1px solid #ebe9f5}
 .two-stage-heading>span,.phase-label {color:#7468d4;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .two-stage-heading strong {color:#252d43;font-size:13px}
