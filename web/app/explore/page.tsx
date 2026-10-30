@@ -7,7 +7,7 @@ import "../account/account.css";
 import "./explore.css";
 
 type PublicStrategy = { id: string; name: string; config: { symbol?: string; timeframe?: string; entry?: { type?: string } }; updated_at: string };
-const entryNames: Record<string, string> = { ma_cross: "เส้นค่าเฉลี่ยตัดกัน", price_ma: "ราคาตัดเส้นค่าเฉลี่ย", rsi_recovery: "RSI กลับผ่านระดับ" };
+const entryNames: Record<string, string> = { ma_cross: "เส้นค่าเฉลี่ยตัดกัน", price_ma: "ราคาตัดเส้นค่าเฉลี่ย", rsi_recovery: "RSI กลับผ่านระดับ", gold_stoch_pullback: "Gold · EMA + Stochastic Pullback" };
 
 export default function Explore() {
   const [items, setItems] = useState<PublicStrategy[]>([]);

@@ -48,6 +48,24 @@
 .preset-check strong,.preset-check small {display:block}
 .preset-check strong {font-size:11px;color:#49516a}
 .preset-check small {margin-top:4px;color:#858a9a;font-size:9px;line-height:1.5}
+.two-stage-entry {margin-top:20px;padding:17px;border:1px solid #e4e2f4;border-radius:11px;background:linear-gradient(145deg,#faf9ff,#fff)}
+.two-stage-heading {display:flex;flex-direction:column;gap:4px;padding-bottom:13px;border-bottom:1px solid #ebe9f5}
+.two-stage-heading>span,.phase-label {color:#7468d4;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.two-stage-heading strong {color:#252d43;font-size:13px}
+.two-stage-heading small,.entry-stage small {color:#858a9a;font-size:10px;line-height:1.55}
+.entry-stage {display:flex;gap:11px;align-items:flex-start;margin-top:14px}
+.stage-number {display:grid;place-items:center;flex:none;width:27px;height:27px;border-radius:50%;background:#6c5ce7;color:white;font-size:10px;font-weight:800}
+.entry-stage>div:not(.stage-trigger) {display:flex;flex-direction:column;gap:4px;padding-top:2px}
+.entry-stage strong {color:#303953;font-size:11px}
+.stage-connector {margin:9px 0 0 12px;padding-left:25px;color:#8b86ae;font-size:10px}
+.stage-trigger {flex:1;min-width:0;padding:14px;border:1px solid #e8e8f0;border-radius:9px;background:white}
+.stage-trigger .signal-explanation {margin-top:8px}
+.strategy-source {display:inline-block;margin-top:10px;color:#5b4ed1;font-size:10px;font-weight:750;text-decoration:none}
+.strategy-source:hover {text-decoration:underline}
+.order-trigger-stage {margin-top:16px;padding:14px;border-radius:9px;border:1px solid #e6e4f5;background:#fbfaff}
+.order-trigger-stage .builder-field {margin-top:10px}
+.order-trigger-stage .signal-explanation {margin-top:8px}
+.phase-label {margin-bottom:10px;letter-spacing:.02em;text-transform:none}
 @media(max-width:580px){.recovery-preset-grid{grid-template-columns:1fr}.recovery-preset-card{min-height:98px}.preset-details{padding:14px}}
 .custom-recovery-button {display:flex;align-items:center;gap:11px;width:100%;margin-top:9px;padding:12px 14px;border:1px dashed #b9b4dc;border-radius:9px;background:#fcfbff;text-align:left;color:#4c4388;cursor:pointer}
 .custom-recovery-button>span:first-child {display:grid;place-items:center;width:25px;height:25px;border-radius:7px;background:#efedff;color:#6556d7;font-size:18px}
