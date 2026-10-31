@@ -67,6 +67,41 @@
 .entry-module-adder {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f5}
 .entry-module-adder .add-condition-button {width:auto;min-width:160px;margin:0}
 .entry-group-connector {margin:10px 0 12px;padding-left:10px}
+.entry-stage-tabs {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:19px 0 13px}
+.entry-stage-tabs button {display:grid;grid-template-columns:30px 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:12px;text-align:left;border:1px solid #e4e7ef;border-radius:10px;background:#fff;color:#687187;cursor:pointer;transition:background .22s ease,border-color .22s ease,transform .22s ease}
+.entry-stage-tabs button:hover {transform:translateY(-1px)}
+.entry-stage-tabs button.selected {border-color:#8d7df3;background:linear-gradient(135deg,#f5f2ff,#fff);box-shadow:0 4px 16px #6756dc12;color:#332b69}
+.entry-stage-tabs button>span {grid-row:1/3;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#f0effb;color:#6659cb;font-size:9px;font-weight:800}
+.entry-stage-tabs strong {font-size:11px}
+.entry-stage-tabs small {margin-top:3px;color:#9298a8;font-size:9px;line-height:1.4}
+.entry-preview-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(285px,.82fr);gap:14px;align-items:start}
+.entry-config-stage {min-width:0}
+.entry-preview-card {position:sticky;top:14px;overflow:hidden;padding:12px;border:1px solid #272e4b;border-radius:12px;background:linear-gradient(145deg,#11182e,#1b2241);box-shadow:0 14px 32px #11182e18;color:#eef1ff;animation:preview-arrive .38s ease both}
+.entry-preview-head {display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.entry-preview-head>div {display:grid;gap:3px}
+.preview-kicker {color:#9f94f5;font-size:8px;font-weight:800;letter-spacing:.12em}
+.entry-preview-head strong {font-size:11px;letter-spacing:.02em}
+.simulated-badge {display:flex;align-items:center;gap:5px;padding:4px 6px;border:1px solid #ffffff16;border-radius:999px;color:#b5bedb;font-size:7px;font-weight:800;letter-spacing:.1em}
+.simulated-badge i {width:5px;height:5px;border-radius:50%;background:#4bd7c3;box-shadow:0 0 9px #4bd7c3}
+.chart-readout {display:flex;justify-content:space-between;gap:3px;color:#a5aec9;font-variant-numeric:tabular-nums;font-size:7px}
+.entry-preview-svg {display:block;width:100%;height:auto;margin-top:3px;animation:chart-draw .48s ease both}
+.chart-candle {animation:candle-rise .45s ease both}
+.preview-trigger-summary {display:flex;align-items:center;gap:9px;margin-top:6px;padding:9px;border:1px solid #ffffff13;border-radius:8px;background:#ffffff08}
+.preview-state-light {flex:none;width:8px;height:8px;border-radius:50%;background:#4bd7c3;box-shadow:0 0 10px #4bd7c388}
+.preview-state-light.waiting {background:#f4bd64;box-shadow:0 0 10px #f4bd6488}
+.preview-trigger-summary strong,.preview-trigger-summary small {display:block}
+.preview-trigger-summary strong {font-size:9px}
+.preview-trigger-summary small {margin-top:3px;color:#a8b0cc;font-size:8px;line-height:1.45}
+.preview-disclaimer {margin:8px 2px 0;color:#98a1bd;font-size:8px;line-height:1.5}
+.entry-trigger-settings {display:grid;gap:13px}
+.entry-trigger-settings .entry-group-heading {margin-bottom:2px}
+.entry-trigger-settings .input-wrap {max-width:380px}
+.trigger-description {margin:-7px 0 1px;padding-left:1px;color:#777f91;font-size:10px;line-height:1.5}
+@keyframes preview-arrive {from{opacity:.55;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes chart-draw {from{opacity:.6;filter:saturate(.65)}to{opacity:1;filter:saturate(1)}}
+@keyframes candle-rise {from{opacity:.45}to{opacity:1}}
+@media(max-width:1040px){.entry-preview-layout{grid-template-columns:1fr}.entry-preview-card{position:relative;top:auto;max-width:600px;margin:0 auto;width:100%}}
+@media(max-width:580px){.entry-stage-tabs{gap:7px}.entry-stage-tabs button{padding:9px;column-gap:7px}.entry-stage-tabs small{font-size:8px}.entry-preview-card{padding:9px}.entry-preview-head strong{font-size:10px}}
 @media(max-width:580px){.entry-condition-group{padding:12px}.entry-module-adder{grid-template-columns:1fr}.entry-module-adder .add-condition-button{width:100%}}
 .two-stage-heading {display:flex;flex-direction:column;gap:4px;padding-bottom:13px;border-bottom:1px solid #ebe9f5}
 .two-stage-heading>span,.phase-label {color:#7468d4;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}

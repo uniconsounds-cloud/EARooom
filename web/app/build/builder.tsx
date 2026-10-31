@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import EntryPreviewChart from "./entry-preview-chart";
 
 const STEPS = ["Entry", "Manage", "Exit", "Protection"] as const;
 type Entry = "ma_cross" | "price_ma" | "rsi_recovery" | "gold_stoch_pullback";
 type Direction = "both" | "buy" | "sell";
 type LotMode = "fixed" | "multiplier";
 type EntryModuleKind = "ema" | "stochastic" | "rsi" | "ma_cross" | "price_cross";
-type EntryModule = { kind: EntryModuleKind; period?: number; fastPeriod?: number; slowPeriod?: number; signalPeriod?: number; level?: number; upperLevel?: number; averageType?: "SMA" | "EMA"; rule?: string; target?: "moving_average" | "price_level" };
-type EntryConditionGroup = { logic: "all" | "any"; conditions: EntryModule[] };
-type EntryTriggerKind = "next_bar_open" | "break_signal_candle" | "pullback_to_ema" | "candle_reversal" | "manual";
-type EntryTrigger = { kind: EntryTriggerKind; emaPeriod?: number; bufferPoints?: number; maxWaitBars?: number };
+export type EntryModule = { kind: EntryModuleKind; period?: number; fastPeriod?: number; slowPeriod?: number; signalPeriod?: number; level?: number; upperLevel?: number; averageType?: "SMA" | "EMA"; rule?: string; target?: "moving_average" | "price_level" };
+export type EntryConditionGroup = { logic: "all" | "any"; conditions: EntryModule[] };
+type EntryTriggerKind = "immediate" | "next_bar_open" | "delay_seconds" | "price_move" | "break_signal_candle" | "pullback_to_ema" | "candle_reversal" | "manual";
+export type EntryTrigger = { kind: EntryTriggerKind; emaPeriod?: number; bufferPoints?: number; maxWaitBars?: number; delaySeconds?: number; priceMovePoints?: number; moveDirection?: "favorable" | "adverse" };
 type RecoveryPreset = "distance" | "candle" | "trend" | "range" | "atr" | "manual" | "custom";
 type RecoveryConditionKind = "candle_reversal" | "trend_filter" | "range_reentry" | "atr_gate" | "rsi_recovery" | "manual_confirm";
 type RecoveryCondition = { kind: RecoveryConditionKind; timeframe?: string; period?: number; level?: number; method?: string };
@@ -27,7 +28,7 @@ type RecoveryConfig = {
   atrMultiplier?: number; pauseOnAtrExpansion?: boolean; maxWaitBars?: number;
   orderRules?: AddOrderRule[];
 };
-type Strategy = {
+export type Strategy = {
   schemaVersion: 1; strategyType?: "gold_scalping_recovery"; name: string; symbol: string; timeframe: string; direction: Direction;
   entry: { type: Entry; fastPeriod: number; slowPeriod: number; maPeriod: number; rsiPeriod: number; rsiLow: number; rsiHigh: number; stochasticKPeriod?: number; stochasticDPeriod?: number; stochasticSlowing?: number; stochasticOversold?: number; stochasticOverbought?: number; emaFilterPeriod?: number; trigger?: EntryTrigger; logic?: "all" | "any"; conditions?: RecoveryCondition[]; signalGroup?: EntryConditionGroup; firstEntryGroup?: EntryConditionGroup };
   manage: { lotSize: number; maxPositions: number; mode?: "single" | "recovery"; recovery?: RecoveryConfig };
@@ -35,6 +36,15 @@ type Strategy = {
   protection: { maxSpreadPoints: number };
 };
 const defaultEntryTrigger = (): EntryTrigger => ({ kind: "next_bar_open", maxWaitBars: 3 });
+const entryTriggerChoices: { id: EntryTriggerKind; label: string; description: string }[] = [
+  { id: "immediate", label: "ทันทีเมื่อพร้อม", description: "ส่ง Market order ที่ tick ถัดไปหลังสัญญาณ Setup ผ่าน" },
+  { id: "next_bar_open", label: "เปิดแท่งถัดไป", description: "รอแท่งปัจจุบันปิด แล้วเข้าในช่วงเริ่มแท่งใหม่" },
+  { id: "delay_seconds", label: "หน่วงเวลา", description: "รอครบเวลาที่กำหนด แล้วเข้าเมื่อ Setup ยังใช้ได้" },
+  { id: "price_move", label: "รอราคาขยับตามระยะ", description: "รอราคาเดินหน้าหรือสวนทางจากราคาตอน Setup พร้อม" },
+  { id: "break_signal_candle", label: "รอเบรก High/Low แท่งสัญญาณ", description: "เข้าเมื่อราคาทะลุขอบแท่งที่ทำให้ Setup พร้อม" },
+  { id: "pullback_to_ema", label: "รอย่อกลับถึง EMA", description: "รอราคาย่อแตะเส้น EMA ก่อนเข้า" },
+  { id: "manual", label: "รอยืนยันด้วยตนเอง", description: "แจ้งว่าพร้อมแล้ว แต่ยังไม่เข้าอัตโนมัติ" },
+];
 const moduleLabels: Record<EntryModuleKind, string> = { ema: "EMA", stochastic: "Stochastic", rsi: "RSI", ma_cross: "เส้นค่าเฉลี่ยตัดกัน", price_cross: "ราคาตัดเส้นค่าเฉลี่ย" };
 function newEntryModule(kind: EntryModuleKind, stage: "signal" | "entry"): EntryModule {
   if (kind === "ema") return { kind, period: 400, rule: "with_direction" };
@@ -45,7 +55,7 @@ function newEntryModule(kind: EntryModuleKind, stage: "signal" | "entry"): Entry
 }
 const defaultSignalGroup: EntryConditionGroup = { logic: "all", conditions: [{ kind: "ema", period: 400, rule: "with_direction" }, { kind: "stochastic", period: 15, signalPeriod: 2, slowPeriod: 9, rule: "extreme_for_direction", level: 20, upperLevel: 80 }] };
 const defaultFirstEntryGroup: EntryConditionGroup = { logic: "all", conditions: [{ kind: "stochastic", period: 15, signalPeriod: 2, slowPeriod: 9, rule: "cross_for_direction", level: 20, upperLevel: 80 }] };
-const defaults: Strategy = { schemaVersion: 1, strategyType: "gold_scalping_recovery", name: "Gold M5 · EMA400 + Stochastic", symbol: "XAUUSD", timeframe: "M5", direction: "both", entry: { type: "gold_stoch_pullback", fastPeriod: 20, slowPeriod: 50, maPeriod: 50, rsiPeriod: 14, rsiLow: 30, rsiHigh: 70, stochasticKPeriod: 15, stochasticDPeriod: 2, stochasticSlowing: 9, stochasticOversold: 20, stochasticOverbought: 80, emaFilterPeriod: 400, trigger: defaultEntryTrigger(), signalGroup: defaultSignalGroup, firstEntryGroup: defaultFirstEntryGroup }, manage: { lotSize: 0.01, maxPositions: 1, mode: "single", recovery: { maxAdds: 3, spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "candle", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, orderRules: Array.from({length:3},()=>({logic:"all",conditions:[{kind:"candle_reversal"}],trigger:defaultEntryTrigger()})) } }, exit: { stopLossPips: 30, takeProfitPips: 60, stopMode: "swing", swingLookbackBars: 10, swingBufferPoints: 0, riskRewardRatio: 1.5, basketStopLoss: 0, basketTakeProfit: 0 }, protection: { maxSpreadPoints: 30 } };
+const defaults: Strategy = { schemaVersion: 1, strategyType: "gold_scalping_recovery", name: "Gold M5 · EMA400 + Stochastic", symbol: "XAUUSD", timeframe: "M5", direction: "both", entry: { type: "gold_stoch_pullback", fastPeriod: 20, slowPeriod: 50, maPeriod: 50, rsiPeriod: 14, rsiLow: 30, rsiHigh: 70, stochasticKPeriod: 15, stochasticDPeriod: 2, stochasticSlowing: 9, stochasticOversold: 20, stochasticOverbought: 80, emaFilterPeriod: 400, trigger: defaultEntryTrigger(), signalGroup: defaultSignalGroup }, manage: { lotSize: 0.01, maxPositions: 1, mode: "single", recovery: { maxAdds: 3, spacingPoints: 0, lotMode: "fixed", lotMultiplier: 1, preset: "candle", spacingMode: "fixed", cooldownBars: 1, confirmationTimeframe: "same", trendFilter: "ema_slope", rangeSignal: "band_reentry", atrPeriod: 14, atrMultiplier: 1, pauseOnAtrExpansion: true, maxWaitBars: 3, orderRules: Array.from({length:3},()=>({logic:"all",conditions:[{kind:"candle_reversal"}],trigger:defaultEntryTrigger()})) } }, exit: { stopLossPips: 30, takeProfitPips: 60, stopMode: "swing", swingLookbackBars: 10, swingBufferPoints: 0, riskRewardRatio: 1.5, basketStopLoss: 0, basketTakeProfit: 0 }, protection: { maxSpreadPoints: 30 } };
 const recoveryPresets: { id: RecoveryPreset; title: string; description: string; details: string; signal: string }[] = [
   { id: "distance", title: "เพิ่มตามระยะ", description: "ราคาสวนทางครบระยะแล้วจึงเพิ่มไม้", details: "ใช้ระยะราคาเป็น trigger หลัก ไม่มีสัญญาณยืนยันเพิ่มเติม", signal: "Distance only" },
   { id: "candle", title: "รอแท่งยืนยัน", description: "ถึงระยะแล้วรอแท่งปิดยืนยันก่อนเพิ่ม", details: "ช่วยรอให้ราคาแสดงสัญญาณกลับทิศก่อนเปิดไม้แก้", signal: "Closed candle confirmation" },
@@ -101,15 +111,12 @@ function normalizeStrategy(s: Strategy): Strategy {
         : strategy.entry.type === "rsi_recovery"
           ? [{ kind: "rsi" as const, period: strategy.entry.rsiPeriod, level: strategy.entry.rsiLow, upperLevel: strategy.entry.rsiHigh, rule: "recover_for_direction" }]
           : defaultSignalGroup.conditions;
-    const legacyFirstEntry = strategy.entry.type === "gold_stoch_pullback"
-      ? defaultFirstEntryGroup.conditions
-      : [{ kind: "ema" as const, period: 50, rule: "with_direction" }];
     return {
       ...strategy,
       entry: {
         ...strategy.entry,
         signalGroup: strategy.entry.signalGroup ?? { logic: "all", conditions: legacySignal },
-        firstEntryGroup: strategy.entry.firstEntryGroup ?? { logic: "all", conditions: legacyFirstEntry },
+        ...(strategy.entry.firstEntryGroup ? { firstEntryGroup: strategy.entry.firstEntryGroup } : {}),
         stochasticKPeriod: strategy.entry.stochasticKPeriod ?? 15,
         stochasticDPeriod: strategy.entry.stochasticDPeriod ?? 2,
         stochasticSlowing: strategy.entry.stochasticSlowing ?? 9,
@@ -151,7 +158,7 @@ function validDraft(s: Strategy): string | null {
     if (!(stochasticOversold>0&&stochasticOversold<stochasticOverbought&&stochasticOverbought<100)) return "โซน Stochastic ต้องอยู่ระหว่าง 0–100 และระดับต่ำต้องน้อยกว่าระดับสูง";
   }
   const entryTrigger = s.entry.trigger ?? defaultEntryTrigger();
-  if (!triggerKinds.some(item=>item.id===entryTrigger.kind) || (entryTrigger.maxWaitBars!==undefined&&(!Number.isInteger(entryTrigger.maxWaitBars)||entryTrigger.maxWaitBars<1)) || (entryTrigger.bufferPoints!==undefined&&(!Number.isFinite(entryTrigger.bufferPoints)||entryTrigger.bufferPoints<0)) || (entryTrigger.emaPeriod!==undefined&&(!Number.isInteger(entryTrigger.emaPeriod)||entryTrigger.emaPeriod<1))) return "ตรวจสอบเงื่อนไขจังหวะเข้าไม้ที่สอง";
+  if (!entryTriggerChoices.some(item=>item.id===entryTrigger.kind) || (entryTrigger.maxWaitBars!==undefined&&(!Number.isInteger(entryTrigger.maxWaitBars)||entryTrigger.maxWaitBars<1)) || (entryTrigger.bufferPoints!==undefined&&(!Number.isFinite(entryTrigger.bufferPoints)||entryTrigger.bufferPoints<0)) || (entryTrigger.emaPeriod!==undefined&&(!Number.isInteger(entryTrigger.emaPeriod)||entryTrigger.emaPeriod<1)) || (entryTrigger.delaySeconds!==undefined&&(!Number.isInteger(entryTrigger.delaySeconds)||entryTrigger.delaySeconds<1)) || (entryTrigger.priceMovePoints!==undefined&&(!Number.isFinite(entryTrigger.priceMovePoints)||entryTrigger.priceMovePoints<=0))) return "ตรวจสอบเงื่อนไขจังหวะเข้าไม้ที่สอง";
   if (s.entry.type === "gold_stoch_pullback" && ((s.exit.swingLookbackBars ?? 0) < 1 || !Number.isInteger(s.exit.swingLookbackBars) || (s.exit.swingBufferPoints ?? 0) < 0 || (s.exit.riskRewardRatio ?? 0) <= 0)) return "ตรวจสอบ Lookback, buffer และ Risk:Reward ของ Gold Strategy";
   if (s.entry.conditions && s.entry.conditions.some(condition => !Object.keys(conditionLabels).includes(condition.kind))) return "ตรวจสอบเงื่อนไขเข้าเทรดเพิ่มเติม";
   if (![s.manage.lotSize,s.protection.maxSpreadPoints].every(n => Number.isFinite(n) && n > 0)) return "Lot เริ่มต้นและ spread สูงสุดต้องมากกว่า 0";
@@ -182,7 +189,7 @@ function validDraft(s: Strategy): string | null {
 function valid(s: Strategy): string | null {
   const draftError = validDraft(s);
   if (draftError) return draftError;
-  for (const [label, group] of [["สัญญาณก่อนเข้าไม้", s.entry.signalGroup], ["เงื่อนไขเข้าไม้แรก", s.entry.firstEntryGroup]] as const) {
+  for (const [label, group] of [["สัญญาณก่อนเข้าไม้", s.entry.signalGroup]] as const) {
     if (!group || group.conditions.length === 0) return `เพิ่มอย่างน้อย 1 เงื่อนไขในกลุ่ม${label}`;
     for (const condition of group.conditions) {
       const positiveIntegers = condition.kind === "ma_cross"
@@ -222,7 +229,7 @@ export default function Builder() {
   const [isPublic, setIsPublic] = useState(false);
   const [remoteBusy, setRemoteBusy] = useState(false);
   const [signalModuleToAdd, setSignalModuleToAdd] = useState<EntryModuleKind>("rsi");
-  const [entryModuleToAdd, setEntryModuleToAdd] = useState<EntryModuleKind>("price_cross");
+  const [entryStage, setEntryStage] = useState<"signal" | "trigger">("signal");
   useEffect(() => {
     let active = true;
     async function loadRemote() {
@@ -346,7 +353,7 @@ export default function Builder() {
   const addExitRule = () => setStrategy(s => ({ ...s, exit: { ...s.exit, closeRules: [...(s.exit.closeRules ?? []), { kind: "average_target", value: 0 }] } }));
   const removeExitRule = (index: number) => setStrategy(s => ({ ...s, exit: { ...s.exit, closeRules: (s.exit.closeRules ?? []).filter((_, ruleIndex) => ruleIndex !== index) } }));
   const summarizeGroup = (group?: EntryConditionGroup) => group?.conditions.map(item => item.kind === "ema" ? `EMA ${item.period ?? 400}` : item.kind === "stochastic" ? `Stoch ${item.period ?? 15}/${item.signalPeriod ?? 2}/${item.slowPeriod ?? 9}` : item.kind === "rsi" ? `RSI ${item.period ?? 14}` : item.kind === "ma_cross" ? `${item.averageType ?? "SMA"} ${item.fastPeriod ?? 20}/${item.slowPeriod ?? 50} cross` : item.target === "price_level" ? `Price × ${item.level ?? "level"}` : `Price × ${item.averageType ?? "EMA"} ${item.period ?? 50}`).join(" + ") || "ยังไม่ตั้ง";
-  const summary = `พร้อม: ${summarizeGroup(strategy.entry.signalGroup)} · เข้า: ${summarizeGroup(strategy.entry.firstEntryGroup)}`;
+  const summary = `Setup: ${summarizeGroup(strategy.entry.signalGroup)} · Trigger: ${entryTriggerChoices.find(item=>item.id===(strategy.entry.trigger??defaultEntryTrigger()).kind)?.label ?? "เปิดแท่งถัดไป"}`;
   const exitSummary = usesBasketExit(strategy) ? `Basket SL ${strategy.exit.basketStopLoss || "ยังไม่ตั้ง"} · TP ${strategy.exit.basketTakeProfit || "ยังไม่ตั้ง"} · ${strategy.exit.closeRules?.length??0} วิธีเสริม` : strategy.entry.type === "gold_stoch_pullback" ? `SL Swing · TP ${strategy.exit.riskRewardRatio??1.5}R` : `SL ${strategy.exit.stopLossPips} / TP ${strategy.exit.takeProfitPips} pips`;
   function save() {
     const error = validDraft(strategy); if (error) { setNotice(error); return; }
@@ -380,6 +387,17 @@ export default function Builder() {
     {trigger.kind==="manual"&&field("ยกเลิกคำขอหลัง",trigger.maxWaitBars??3,n=>onChange({maxWaitBars:n}),"แท่ง",1)}
     <p className="signal-explanation">สัญญาณพร้อมแล้วจะรอเงื่อนไขนี้ก่อนเข้า · หากไม่เกิดภายในเวลาที่กำหนด ให้ยกเลิกสัญญาณเพื่อไม่ไล่ราคาทีหลัง</p>
   </>;
+  const entryTriggerSettings = (trigger: EntryTrigger, onChange: (patch: Partial<EntryTrigger>) => void) => <section className="entry-condition-group entry-trigger-settings" aria-label="จังหวะเข้าไม้แรก">
+    <div className="entry-group-heading"><div><span className="phase-label">จังหวะ 2 · Trigger</span><h3>เข้าไม้แรกเมื่อใด</h3><p>Setup ผ่านแล้ว จากนั้นใช้กติกานี้กำหนดจังหวะส่งคำสั่ง โดยไม่ต้องเพิ่ม Indicator ในขั้นนี้</p></div></div>
+    <label className="builder-field"><span>เลือกรูปแบบจังหวะเข้า</span><span className="input-wrap"><select value={trigger.kind} onChange={e=>onChange({kind:e.target.value as EntryTriggerKind})}>{entryTriggerChoices.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></span></label>
+    <p className="trigger-description">{entryTriggerChoices.find(item=>item.id===trigger.kind)?.description}</p>
+    {trigger.kind==="delay_seconds"&&field("หน่วงเวลาก่อนเข้า",trigger.delaySeconds??10,n=>onChange({delaySeconds:n}),"วินาที",1)}
+    {trigger.kind==="price_move"&&<div className="field-grid">{field("ระยะจากจุด Setup",trigger.priceMovePoints??10,n=>onChange({priceMovePoints:n}),"points",0.1,0.1)}<label className="builder-field"><span>ทิศทางการขยับ</span><span className="input-wrap"><select value={trigger.moveDirection??"favorable"} onChange={e=>onChange({moveDirection:e.target.value as "favorable"|"adverse"})}><option value="favorable">ไปตามทิศทางเทรด</option><option value="adverse">สวนทางจากจุด Setup</option></select></span></label></div>}
+    {trigger.kind==="pullback_to_ema"&&<div className="field-grid">{field("EMA สำหรับรอจังหวะย่อ",trigger.emaPeriod??50,n=>onChange({emaPeriod:n}),"period",1)}{field("Buffer จาก EMA",trigger.bufferPoints??0,n=>onChange({bufferPoints:n}),"points",0,0.1)}</div>}
+    {trigger.kind==="break_signal_candle"&&field("Buffer เหนือ/ใต้แท่งสัญญาณ",trigger.bufferPoints??0,n=>onChange({bufferPoints:n}),"points",0,0.1)}
+    {trigger.kind!=="immediate"&&trigger.kind!=="next_bar_open"&&field("ยกเลิกสัญญาณหลัง",trigger.maxWaitBars??3,n=>onChange({maxWaitBars:n}),"แท่ง",1)}
+    <p className="signal-explanation">นี่คือภาพประกอบจากกราฟจำลองเท่านั้น · ระบบจริงต้องยกเลิกสัญญาณเมื่อหมดอายุหรือ Setup ไม่ผ่านแล้ว</p>
+  </section>;
   return <div className="builder-page">
     <header className="builder-header"><Link href="/" className="builder-logo"><span>✳</span> EASpaze<span className="logo-period">.</span></Link><span className="header-divider" /><span className="header-title">Strategy Builder <small> / Draft</small></span><Link href="/" className="back-home">← กลับหน้าแรก</Link></header>
     <main className="builder-shell">
@@ -389,14 +407,18 @@ export default function Builder() {
         <section className="builder-panel">
           {step === 0 && <>
             <div className="panel-heading"><span className="panel-tag">STEP 01 · ENTRY</span><h2>ตั้งสัญญาณและจังหวะเข้าไม้แรก</h2><p>แบ่งการเข้าเป็นสองกลุ่มแยกกัน: กลุ่มแรกบอกว่ากลยุทธ์พร้อมแล้ว กลุ่มที่สองเป็นตัวกระตุ้นให้เข้าไม้แรก</p></div>
-            <div className="two-stage-entry">
-              {renderEntryGroup("signalGroup", "สัญญาณก่อนเข้าไม้", "ใช้เป็น Setup หรือ Filter ก่อนเริ่มรอจังหวะเข้าไม้แรก", signalModuleToAdd, setSignalModuleToAdd)}
-              <div className="stage-connector entry-group-connector">↓ เมื่อกลุ่มแรกผ่าน จึงเริ่มตรวจกลุ่มเข้าไม้แรก</div>
-              {renderEntryGroup("firstEntryGroup", "เงื่อนไขเข้าไม้แรก", "เป็น Entry Trigger · เมื่อกลุ่มนี้ผ่าน ระบบจึงถือว่าเกิดสัญญาณเข้าไม้แรก", entryModuleToAdd, setEntryModuleToAdd)}
+            <div className="entry-stage-tabs" role="tablist" aria-label="ขั้นตอนการตั้งค่า Entry">
+              <button type="button" role="tab" aria-selected={entryStage==="signal"} className={entryStage==="signal"?"selected":""} onClick={()=>setEntryStage("signal")}><span>01</span><strong>Signal Setup</strong><small>สัญญาณ/Indicator ที่ต้องผ่าน</small></button>
+              <button type="button" role="tab" aria-selected={entryStage==="trigger"} className={entryStage==="trigger"?"selected":""} onClick={()=>setEntryStage("trigger")}><span>02</span><strong>Entry Trigger</strong><small>จังหวะส่งคำสั่งหลัง Setup พร้อม</small></button>
             </div>
-            <p className="signal-explanation">ภายในแต่ละกลุ่มเลือก ALL เพื่อให้ผ่านทุกโมดูล หรือ ANY เพื่อให้ผ่านเพียงข้อใดข้อหนึ่ง · ค่าตั้งต้น EMA 400 + Stochastic เป็นตัวอย่างที่แก้ไขได้</p>
-            <a className="strategy-source" href="https://www.youtube.com/watch?v=AM5MGdbMbdo" target="_blank" rel="noreferrer">ที่มาของค่า EMA + Stochastic เริ่มต้น · ดูคลิป ↗</a>
-            <div className="direction-group"><span>ทิศทางที่ต้องการเทรด</span><div>{([ ["both","Buy + Sell"],["buy","Buy เท่านั้น"],["sell","Sell เท่านั้น"] ] as const).map(([value,label])=><button key={value} type="button" className={strategy.direction === value ? "selected" : ""} aria-pressed={strategy.direction === value} onClick={()=>setStrategy(s=>({...s,direction:value}))}>{label}</button>)}</div></div>
+            <div className="entry-preview-layout"><div className="entry-config-stage">
+              {entryStage==="signal" ? <>
+                {renderEntryGroup("signalGroup", "สัญญาณก่อนเข้าไม้", "ใช้เป็น Setup หรือ Filter ก่อนเริ่มรอจังหวะเข้าไม้แรก", signalModuleToAdd, setSignalModuleToAdd)}
+                <p className="signal-explanation">รวม Indicator ด้วย ALL ให้ผ่านทุกข้อ หรือ ANY ให้ผ่านข้อใดข้อหนึ่ง · ค่าตั้งต้น EMA + Stochastic ปรับแก้ได้</p>
+                <a className="strategy-source" href="https://www.youtube.com/watch?v=AM5MGdbMbdo" target="_blank" rel="noreferrer">ที่มาของค่า EMA + Stochastic เริ่มต้น · ดูคลิป ↗</a>
+                <div className="direction-group"><span>ทิศทางที่ต้องการเทรด</span><div>{([ ["both","Buy + Sell"],["buy","Buy เท่านั้น"],["sell","Sell เท่านั้น"] ] as const).map(([value,label])=><button key={value} type="button" className={strategy.direction === value ? "selected" : ""} aria-pressed={strategy.direction === value} onClick={()=>setStrategy(s=>({...s,direction:value}))}>{label}</button>)}</div></div>
+              </> : entryTriggerSettings(strategy.entry.trigger??defaultEntryTrigger(),patch=>setStrategy(s=>({...s,entry:{...s.entry,trigger:{...(s.entry.trigger??defaultEntryTrigger()),...patch}}})))}
+            </div><EntryPreviewChart strategy={strategy} stage={entryStage}/></div>
             <div className="builder-callout">รายการนี้เป็นการตั้งค่า Strategy บนเว็บ · EA ที่เชื่อมอยู่ในขณะนี้ยังเป็น Probe อ่านข้อมูลอย่างเดียว และยังไม่ส่งคำสั่งเทรด</div>
           </>}
           {step === 1 && hasManageOptions(strategy) && <>
