@@ -400,7 +400,7 @@ export default function Builder() {
   </section>;
   return <div className="builder-page">
     <header className="builder-header"><Link href="/" className="builder-logo"><span>✳</span> EASpaze<span className="logo-period">.</span></Link><span className="header-divider" /><span className="header-title">Strategy Builder <small> / Draft</small></span><Link href="/" className="back-home">← กลับหน้าแรก</Link></header>
-    <main className="builder-shell">
+    <main className={`builder-shell ${step===0?"has-entry-preview":""}`}>
       <div className="builder-intro"><div><span className="builder-kicker">YOUR IDEAS START HERE</span><h1>มาสร้าง Strategy ของคุณกัน</h1><p>ค่อย ๆ ตั้งกติกาทีละขั้น เริ่มจากจังหวะเข้าเทรดที่คุณเข้าใจ</p></div><button type="button" onClick={load} className="builder-text-button">↻ โหลด draft ที่บันทึก</button></div>
       <div className="builder-layout"><div className="builder-main">
         <nav className="builder-steps" aria-label="ขั้นตอนการสร้างกลยุทธ์">{STEPS.map((name, i) => <button type="button" key={name} onClick={() => { setStep(i); setNotice(""); }} aria-current={i === step ? "step" : undefined} className={i === step ? "active" : ""}><span>{i + 1}</span><div><small>STEP 0{i + 1}</small><strong>{name}</strong></div></button>)}</nav>
@@ -418,7 +418,7 @@ export default function Builder() {
                 <a className="strategy-source" href="https://www.youtube.com/watch?v=AM5MGdbMbdo" target="_blank" rel="noreferrer">ที่มาของค่า EMA + Stochastic เริ่มต้น · ดูคลิป ↗</a>
                 <div className="direction-group"><span>ทิศทางที่ต้องการเทรด</span><div>{([ ["both","Buy + Sell"],["buy","Buy เท่านั้น"],["sell","Sell เท่านั้น"] ] as const).map(([value,label])=><button key={value} type="button" className={strategy.direction === value ? "selected" : ""} aria-pressed={strategy.direction === value} onClick={()=>setStrategy(s=>({...s,direction:value}))}>{label}</button>)}</div></div>
               </> : entryTriggerSettings(strategy.entry.trigger??defaultEntryTrigger(),patch=>setStrategy(s=>({...s,entry:{...s.entry,trigger:{...(s.entry.trigger??defaultEntryTrigger()),...patch}}})))}
-            </div><EntryPreviewChart strategy={strategy} stage={entryStage}/></div>
+            </div><EntryPreviewChart strategy={strategy} stage={entryStage} onTimeframeChange={timeframe=>setStrategy(s=>({...s,timeframe}))}/></div>
             <div className="builder-callout">รายการนี้เป็นการตั้งค่า Strategy บนเว็บ · EA ที่เชื่อมอยู่ในขณะนี้ยังเป็น Probe อ่านข้อมูลอย่างเดียว และยังไม่ส่งคำสั่งเทรด</div>
           </>}
           {step === 1 && hasManageOptions(strategy) && <>

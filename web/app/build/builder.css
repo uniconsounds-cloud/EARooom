@@ -155,3 +155,50 @@
 .exit-rule-card {margin-top:10px;padding:12px;border:1px solid #ebeaf2;border-radius:9px;background:#fafaff}
 .exit-rule-fields {margin-top:10px}
 @media(max-width:580px){.add-order-rule>summary{align-items:flex-start}.add-order-rule>summary small{max-width:55%}.exit-rules-panel{padding:13px}}
+
+/* A readable chart surface with shallow depth; all prices remain simulated. */
+.builder-shell.has-entry-preview {max-width:1660px}
+.has-entry-preview .entry-preview-layout {grid-template-columns:minmax(300px,.9fr) minmax(410px,1.3fr);gap:20px}
+.entry-preview-card {isolation:isolate;padding:20px;border-color:#343b60;border-radius:20px;background:radial-gradient(ellipse at 90% 0%,#6658bd33,transparent 55%),linear-gradient(145deg,#11192e,#131b33 55%,#1e2547);box-shadow:0 24px 45px -24px #0f173c99,inset 0 1px #ffffff18;overflow:visible}
+.entry-preview-head {margin-bottom:17px}
+.entry-preview-head strong {font-size:20px;letter-spacing:-.035em}
+.entry-preview-head strong small {color:#9ea9c9;font-size:13px;font-weight:500}
+.preview-kicker {font-size:9px;color:#ada0ff;letter-spacing:.18em}
+.simulated-badge {padding:6px 8px;font-size:8px;border-color:#7887b62e;background:#a6b2ff08}
+.preview-toolbar {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}
+.preview-timeframes {display:flex;gap:3px;flex-wrap:wrap}
+.preview-timeframes button,.preview-depth-button {border:1px solid transparent;border-radius:7px;background:transparent;color:#8d9bbc;padding:6px 8px;font-size:10px;font-weight:650;cursor:pointer;transition:color .15s,background .15s,border-color .15s}
+.preview-timeframes button:hover,.preview-depth-button:hover {background:#ffffff10;color:#e8e3ff}
+.preview-timeframes button[aria-pressed=true] {color:#e5dfff;background:#8970f330;border-color:#a698ff55;box-shadow:inset 0 1px #e2d6ff14}
+.preview-depth-button {display:flex;gap:5px;align-items:center;border-color:#7f77b552;color:#c5baff;background:#8e75f014;white-space:nowrap}
+.preview-depth-button span {font-size:15px;line-height:1}
+.preview-timeframes button:focus-visible,.preview-depth-button:focus-visible {outline:2px solid #b9a9ff;outline-offset:2px}
+.chart-readout {justify-content:flex-start;gap:12px;flex-wrap:wrap;font-size:9px;min-height:16px;color:#6f819f}
+.chart-readout b {color:#a8bbd6;font-weight:500;font-variant-numeric:tabular-nums}
+.preview-scene {position:relative;perspective:1100px;margin:6px -8px 0;padding-bottom:20px}
+.preview-chart-plane {position:relative;z-index:2;border:1px solid #6678a62e;border-radius:14px;background:#11192e;transform-origin:center 60%;transition:transform .18s ease-out,box-shadow .3s;box-shadow:0 3px 0 #222d50,0 6px 0 #0a1228;will-change:transform}
+.preview-scene.has-depth .preview-chart-plane {transform:rotateX(calc(8deg + var(--tilt-x,0deg))) rotateY(calc(-3deg + var(--tilt-y,0deg))) translateZ(8px);box-shadow:2px 5px 0 #29355b,3px 9px 0 #0a1228,0 28px 24px -20px #000a}
+.preview-scene-floor {position:absolute;z-index:0;left:8%;right:5%;height:20%;bottom:0;border-radius:50%;background:#8070ef18;filter:blur(15px);pointer-events:none}
+.entry-preview-svg {margin:0;overflow:hidden;border-radius:14px;animation:none}
+.chart-candle {animation:none}
+.preview-indicator-line {filter:drop-shadow(0 0 3px #9783ff66)}
+.preview-module-chips {display:flex;gap:5px;flex-wrap:wrap;margin:0 0 15px;min-height:22px}
+.preview-module-chips span {display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid #9e8dff25;border-radius:6px;background:#9d86ff0c;color:#bdb0ec;font-size:9px;font-variant-numeric:tabular-nums}
+.preview-module-chips i {width:4px;height:4px;background:#aa97ff;border-radius:50%}
+.preview-module-chips span:nth-child(2n) {color:#83cfc8;border-color:#6cd6cd25;background:#6cd6cd08}
+.preview-module-chips span:nth-child(2n) i {background:#6cd6cd}
+.preview-flow {display:grid;grid-template-columns:1fr 14px 1fr 14px 1fr;align-items:center;gap:4px;padding:5px 0 13px;border-bottom:1px solid #7583b122}
+.preview-flow>div {display:grid;grid-template-columns:22px 1fr;column-gap:5px;align-items:center;padding:8px 6px;border:1px solid transparent;border-radius:9px;transition:background .2s,border-color .2s}
+.preview-flow>div.active {border-color:#8e7ce640;background:linear-gradient(135deg,#9d86ff18,#9d86ff04)}
+.preview-flow>div>span {grid-row:1/3;display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:#8e86ab18;color:#9a92bf;font-size:10px}
+.preview-flow>div.active>span {background:#9c83ff25;color:#d8cbff;box-shadow:0 0 16px #a38aff10}
+.preview-flow strong {font-size:8px;letter-spacing:.08em;color:#b0b8d0}
+.preview-flow small {grid-column:2;font-size:8px;margin-top:3px;color:#7183a4;line-height:1.4;overflow-wrap:anywhere}
+.preview-flow>b {text-align:center;font-size:11px;color:#6d668d}
+.preview-trigger-summary {background:transparent;border:0;padding:13px 1px 0;gap:10px}
+.preview-trigger-summary strong {font-size:11px;font-weight:550}
+.preview-trigger-summary small {font-size:9px;color:#8595b5;line-height:1.6}
+.preview-disclaimer {margin-top:13px;color:#6e80a1;font-size:9px;line-height:1.7}
+@media(max-width:1390px){.has-entry-preview .entry-preview-layout{grid-template-columns:1fr}.entry-preview-card{position:relative;top:auto;grid-row:1;max-width:none;width:100%}.preview-scene{max-width:850px;margin-inline:auto}.has-entry-preview .entry-config-stage{grid-row:2}}
+@media(max-width:580px){.entry-preview-card{padding:14px;border-radius:15px}.entry-preview-head strong{font-size:17px}.preview-toolbar{gap:3px}.preview-timeframes{gap:1px}.preview-timeframes button{padding:6px 7px}.chart-readout{font-size:8px;gap:9px}.preview-flow{gap:1px;grid-template-columns:1fr 9px 1fr 9px 1fr}.preview-flow>div{padding:6px 2px;grid-template-columns:18px 1fr;gap:4px}.preview-flow>div>span{width:18px;height:20px}.preview-flow small{font-size:7px}.preview-flow strong{font-size:7px}.preview-scene{margin-inline:-5px}}
+@media(prefers-reduced-motion:reduce){.preview-chart-plane,.entry-stage-tabs button,.preview-flow>div{transition:none!important}.preview-scene.has-depth .preview-chart-plane{transform:rotateX(5deg) rotateY(-2deg)}.entry-preview-card{animation:none}.preview-indicator-line{filter:none}}
