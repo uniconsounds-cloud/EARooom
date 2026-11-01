@@ -10,6 +10,11 @@ void MovingAverage(const double &samples[],double &output[],int n,bool exponenti
  }
 }
 bool Cross(double a0,double a1,double b0,double b1,bool buy){if(a0==EMPTY_VALUE||a1==EMPTY_VALUE||b0==EMPTY_VALUE||b1==EMPTY_VALUE)return false;return buy?(a0<=b0&&a1>b1):(a0>=b0&&a1<b1);}
+bool ZoneThenCross(const double &a[],const double &b[],int i,bool buy,double low,double high,int wait){
+ if(i<1||!Cross(a[i-1],a[i],b[i-1],b[i],buy))return false;
+ for(int j=i-1;j>=MathMax(0,i-wait);j--){double k=a[j];if(k==EMPTY_VALUE||(buy?k>low:k<high))return false;if(buy?k<low:k>high)return true;}
+ return false;
+}
 bool Module(const MqlRates &bars[],int i,int module,bool buy){
  string prefix="m"+IntegerToString(module)+".",kind=Value(prefix+"kind"),rule=Value(prefix+"rule");int n=(int)Number(prefix+"period"),size=ArraySize(bars);
  double close[];ArrayResize(close,size);for(int j=0;j<size;j++)close[j]=bars[j].close;
@@ -30,7 +35,7 @@ bool Module(const MqlRates &bars[],int i,int module,bool buy){
  bool direction=rule=="cross_up"?true:rule=="cross_down"?false:buy;
  if(kind=="ma_cross")return Cross(previous,v,b[i-1],b[i],direction);
  if(kind=="price_cross")return Cross(close[i-1],close[i],previous,v,direction);
- if(kind=="stochastic"){if(rule=="k_above_d")return b[i]!=EMPTY_VALUE&&v>b[i];if(rule=="k_below_d")return b[i]!=EMPTY_VALUE&&v<b[i];if(rule=="extreme_for_direction")return buy?v<=low:v>=high;return Cross(previous,v,b[i-1],b[i],buy);}
+ if(kind=="stochastic"){if(rule=="zone_then_cross")return ZoneThenCross(a,b,i,buy,low,high,(int)Number(prefix+"zoneWait"));if(rule=="k_above_d")return b[i]!=EMPTY_VALUE&&v>b[i];if(rule=="k_below_d")return b[i]!=EMPTY_VALUE&&v<b[i];if(rule=="extreme_for_direction")return buy?v<=low:v>=high;return Cross(previous,v,b[i-1],b[i],buy);}
  if(rule=="above_level")return v>low;if(rule=="below_level")return v<high;if(rule=="cross_above_level")return Cross(previous,v,low,low,true);if(rule=="cross_below_level")return Cross(previous,v,high,high,false);return buy?Cross(previous,v,low,low,true):Cross(previous,v,high,high,false);
 }
 bool Setup(const MqlRates &bars[],int index,bool buy,int &count){count=0;int n=(int)Number("count");for(int i=0;i<n;i++)if(Module(bars,index,i,buy))count++;return Value("logic")=="all"?count==n:count>0;}

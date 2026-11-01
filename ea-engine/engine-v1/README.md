@@ -1,6 +1,10 @@
-# EASpaze Engine 0.1.0 / ทดลองกับ Demo และ Strategy Tester
+# EASpaze Engine 0.2.0 / ทดลองกับ Demo และ Strategy Tester
 
 EA รุ่นแรกโหลดค่า Strategy จากเว็บโดยไม่ต้อง compile ใหม่เมื่อเปลี่ยนค่า รองรับ **Simple ไม้เดียว**, EMA / Stochastic / RSI / MA cross / Price cross, ALL/ANY, Trigger 7 แบบ และ Fixed SL/TP หรือ Swing SL + RR
+
+รุ่น 0.2 ต้องใช้ Config ที่ดาวน์โหลดใหม่จาก Builder รุ่น 0.2; EA รุ่น 0.1 จะไม่รับ Config รุ่นใหม่ และ EA รุ่น 0.2 จะไม่รับ Config รุ่นเก่า
+
+Stochastic สองขั้นตรวจแท่งปิด: Buy เข้าโซนต่ำก่อน แล้วรอ %K ตัดขึ้นเหนือ %D; หาก %K กลับเหนือโซนก่อนแท่งที่ตัดจะยกเลิก (Sell กลับด้าน) หากตัดและออกจากโซนในแท่งเดียวกันถือว่าผ่าน จำกัดจำนวนแท่งที่รอได้
 
 Recovery และ advanced exit ยังส่งให้ engine รุ่นนี้ไม่ได้ ปุ่ม Export บนเว็บจะแจ้งกติกาที่ไม่รองรับ
 
@@ -8,12 +12,12 @@ Recovery และ advanced exit ยังส่งให้ engine รุ่น
 
 - `EASpazeEngine.mq5` + `EngineRules.mqh`: source ที่ต้องอยู่โฟลเดอร์เดียวกันตอน compile
 - `RuleConformance.mq5`: Script ตรวจสูตร ไม่เปิดออเดอร์; หากต้องรัน ให้นำ source + .mqh ไปไว้ใน `MQL5/Scripts/EASpazeV1` และ compile Script นั้น แล้วอ่านผล PASS/FAIL ใน Experts
-- Compile ล่าสุดของ EA และ Script: 0 errors / 0 warnings (ยังไม่เท่ากับผ่าน demo/backtest runtime)
+- Compile ไม่ได้ยืนยันผล demo/backtest runtime ต้องทดสอบใน MT5 เพิ่มเติม
 
 ## เตรียม Config ส่วนตัว (ไม่ต้องแชร์)
 
 1. ที่เว็บ Builder เลือก Simple และตั้งค่าที่ต้องใช้
-2. เปิดแถบ **EA Engine · 0.1.0** ทางขวา → **ดาวน์โหลด Config สำหรับ MT5**
+2. เปิดแถบ **EA Engine · 0.2.0** ทางขวา → **ดาวน์โหลด Config สำหรับ MT5**
 3. ได้ไฟล์ `easpaze.cfg` และดาวน์โหลด Strategy JSON แยกเก็บอ้างอิงได้
 4. บน MT5 เปิด **File → Open Data Folder** แล้วหาโฟลเดอร์ **Terminal/Common/Files** ซึ่งเป็น Common Files (ไม่ใช่ MQL5/Files)
 5. วิธีหาตำแหน่งที่แน่นอน: เปิด MQL5 Script ที่ Print `TerminalInfoString(TERMINAL_COMMONDATA_PATH)` แล้วเปิดโฟลเดอร์ `Files` ในนั้น
@@ -64,6 +68,6 @@ API อ่าน **เฉพาะ public strategy ตาม id** ไม่อ�
 
 Web: `npm run check:strategy` ใช้ fixture ชุดเดียวกับนิยามใน `docs/STRATEGY_CONTRACT.md`
 
-MQL5 Script compile ผ่านแล้ว ต้องลาก `RuleConformance` จาก Navigator → Scripts ไป chart และดูข้อความ `10 passed, 0 failed` ใน Experts เพื่อยืนยัน runtime ของ MQL5; รอบนี้ยังไม่ได้สั่งรัน Script หรือเทรดใน terminal ของผู้ใช้
+ลาก `RuleConformance` จาก Navigator → Scripts ไป chart และดูข้อความ `14 passed, 0 failed` ใน Experts เพื่อยืนยัน runtime ของ MQL5; การ compile เพียงอย่างเดียวไม่ยืนยันผล runtime
 
 ดูข้อจำกัด [WebRequest](https://www.mql5.com/en/docs/network/webrequest) และ [Strategy Tester](https://www.mql5.com/en/docs/runtime/testing)

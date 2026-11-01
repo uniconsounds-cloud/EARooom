@@ -11,5 +11,5 @@ export async function GET(_request:Request,{params}:{params:Promise<{id:string}>
   if(error)return new Response("Storage unavailable",{status:503});
   if(!data)return new Response("Public strategy not found",{status:404});
   if(validateStrategy(data.config).length)return new Response("Unsupported strategy",{status:422});
-  try{return new Response(runtimeConfig(data.config as Strategy),{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-store"}});}catch{return new Response("Strategy contains rules unsupported by engine 0.1.0",{status:422});}
+  try{return new Response(runtimeConfig(data.config as Strategy),{headers:{"Content-Type":"text/plain; charset=utf-8","Cache-Control":"no-store"}});}catch{return new Response("Strategy contains rules unsupported by engine 0.2.0",{status:422});}
 }

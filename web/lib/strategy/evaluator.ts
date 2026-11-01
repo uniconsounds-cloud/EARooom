@@ -53,8 +53,9 @@ export function moduleMatches(module:EntryModule,line:Line,i:number,bars:Bar[],s
   if(module.kind==="stochastic" && rule==="zone_then_cross") {
     if(!cross(p,v,pd,d,side))return false;
     const lookback=period(module.zoneLookbackBars,10);
-    for(let j=Math.max(0,i-lookback);j<i;j++) {
+    for(let j=i-1;j>=Math.max(0,i-lookback);j--) {
       const k=line.values[j];
+      if(k==null || (side==="buy" ? k>(module.level??20) : k<(module.upperLevel??80)))return false;
       if(k!=null && (side==="buy" ? k<(module.level??20) : k>(module.upperLevel??80)))return true;
     }
     return false;
@@ -70,7 +71,8 @@ export function evaluateGroup(group:EntryConditionGroup,lines:Line[],i:number,ba
 }
 export function historyLength(strategy:Strategy) {
   const ns=[period(strategy.exit.swingLookbackBars,10),period(strategy.entry.trigger?.emaPeriod,50),...(strategy.entry.signalGroup?.conditions??[]).flatMap(m=>[period(m.period,m.kind==="ema"?400:m.kind==="price_cross"?50:m.kind==="stochastic"?15:14),period(m.slowPeriod,50),period(m.fastPeriod,20)])];
-  return Math.min(6200,Math.max(250,...ns.map(n=>n*3+70)));
+  const zoneHistory=Math.max(0,...(strategy.entry.signalGroup?.conditions??[]).filter(m=>m.kind==="stochastic"&&m.rule==="zone_then_cross").map(m=>period(m.zoneLookbackBars,10)+period(m.period,15)+period(m.slowPeriod,9)+period(m.signalPeriod,2)+4));
+  return Math.min(6200,Math.max(250,zoneHistory,...ns.map(n=>n*3+70)));
 }
 export type TriggerEvent = { signalIndex:number; index:number; fraction:number; price:number; side:Side; stopLoss?:number; takeProfit?:number; exitIndex?:number; exitPrice?:number; exitReason?:"TP"|"SL"|"ambiguous"; pending?:string };
 export function triggerFor(strategy:Strategy,bars:Bar[],signalIndex:number,side:Side,point=.01):TriggerEvent|null {

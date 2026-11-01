@@ -239,3 +239,7 @@
 .stoch-readout span:first-child {color:#58dd99}
 .stoch-readout span:nth-child(2) {color:#ff9954}
 .stoch-readout small {color:#9eadd0}
+
+.stoch-steps { margin-top: 14px; padding: 14px 16px; border: 1px solid #d8def1; border-radius: 12px; background: #f6f7ff; color: #253457; font-size: .9rem; line-height: 1.6; }
+.stoch-steps ol { padding-left: 1.3rem; margin: 8px 0; }
+.stoch-steps p { margin: 8px 0 0; }

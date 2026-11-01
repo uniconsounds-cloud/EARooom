@@ -1,6 +1,6 @@
 #property strict
-#property version "1.000"
-#property description "EASpaze Simple engine 0.1.0. Monitor by default; orders limited to demo/tester."
+#property version "1.100"
+#property description "EASpaze Simple engine 0.2.0. Monitor by default; orders limited to demo/tester."
 #include <Trade/Trade.mqh>
 input string InpConfigFile="easpaze.cfg"; // Common Files; reload every poll
 input string InpConfigUrl="";           // Optional exact public strategy HTTPS URL
@@ -8,7 +8,7 @@ input int InpPollSeconds=15;
 input bool InpEnableDemoOrders=false;
 input ulong InpMagic=730031;
 input double InpPipSize=0;              // 0 = XAU 0.1; FX 3/5 digits = 10 points
-const string ENGINE="0.1.0",CONTRACT="1.0.0";
+const string ENGINE="0.2.0",CONTRACT="1.0.0";
 string cfg="",revision="",syncText="NO CONFIG",stateText="WAIT CONFIG",queued="";
 bool synced=false,armed=false,sideBuy=true,prevBuy=false,prevSell=false,manualRequested=false;
 datetime lastSync=0,lastBar=0,armedAt=0;
@@ -19,7 +19,7 @@ CTrade trade;
 #include "EngineRules.mqh"
 bool Member(string value,string list){return StringFind("|"+list+"|","|"+value+"|")>=0;}
 bool Numeric(string key,double low,double high,bool integral=false){string raw=Value(key);if(raw=="")return false;for(int j=0;j<StringLen(raw);j++)if(StringFind("0123456789.eE+-",StringSubstr(raw,j,1))<0)return false;double n=StringToDouble(raw);return MathIsValidNumber(n)&&n>=low&&n<=high&&(!integral||n==MathFloor(n));}
-bool KnownKey(string key){if(Member(key,"format|contract|engine|revision|symbol|timeframe|direction|logic|history|lot|maxSpread|trigger|delay|move|moveDirection|buffer|triggerEma|wait|stopMode|sl|tp|lookback|swingBuffer|rr|count"))return true;int dot=StringFind(key,".");if(dot<2||StringSubstr(key,0,1)!="m")return false;string idx=StringSubstr(key,1,dot-1);int n=(int)StringToInteger(idx);if(IntegerToString(n)!=idx||n<0||n>=12)return false;return Member(StringSubstr(key,dot+1),"kind|rule|period|fast|slow|signal|low|high|average|target");}
+bool KnownKey(string key){if(Member(key,"format|contract|engine|revision|symbol|timeframe|direction|logic|history|lot|maxSpread|trigger|delay|move|moveDirection|buffer|triggerEma|wait|stopMode|sl|tp|lookback|swingBuffer|rr|count"))return true;int dot=StringFind(key,".");if(dot<2||StringSubstr(key,0,1)!="m")return false;string idx=StringSubstr(key,1,dot-1);int n=(int)StringToInteger(idx);if(IntegerToString(n)!=idx||n<0||n>=12)return false;return Member(StringSubstr(key,dot+1),"kind|rule|period|fast|slow|signal|low|high|zoneWait|average|target");}
 ENUM_TIMEFRAMES Timeframe(string tf){if(tf=="M1")return PERIOD_M1;if(tf=="M5")return PERIOD_M5;if(tf=="M15")return PERIOD_M15;if(tf=="H1")return PERIOD_H1;if(tf=="H4")return PERIOD_H4;if(tf=="D1")return PERIOD_D1;return PERIOD_CURRENT;}
 bool Validate(){
  if(Value("format")!="easpaze-runtime"||Value("contract")!=CONTRACT||Value("engine")!=ENGINE)return false;
@@ -35,7 +35,7 @@ bool Validate(){
   if(!Numeric(p+"period",1,2000,true)||!Numeric(p+"fast",1,2000,true)||!Numeric(p+"slow",1,2000,true)||!Numeric(p+"signal",1,2000,true)||!Numeric(p+"low",0,1e9)||!Numeric(p+"high",0,1e9))return false;
   if(kind=="ema"){if(!Member(rule,"with_direction|price_above|price_below|slope_with_direction"))return false;}
   else if(kind=="rsi"){if(!Member(rule,"recover_for_direction|cross_above_level|cross_below_level|above_level|below_level"))return false;}
-  else if(kind=="stochastic"){if(!Member(rule,"cross_for_direction|extreme_for_direction|k_above_d|k_below_d"))return false;}
+  else if(kind=="stochastic"){if(!Member(rule,"cross_for_direction|extreme_for_direction|zone_then_cross|k_above_d|k_below_d"))return false;if(rule=="zone_then_cross"&&!Numeric(p+"zoneWait",1,2000,true))return false;}
   else if(kind=="ma_cross"||kind=="price_cross"){if(!Member(rule,"cross_for_direction|cross_up|cross_down"))return false;if(kind=="ma_cross"&&Number(p+"fast")>=Number(p+"slow"))return false;}
   else return false;
   if((kind=="rsi"||kind=="stochastic")&&(Number(p+"low")>=Number(p+"high")||Number(p+"high")>100))return false;
@@ -86,7 +86,7 @@ void Enter(const MqlRates &bars[]){
  double lot=Number("lot"),step=SymbolInfoDouble(_Symbol,SYMBOL_VOLUME_STEP);
  if(lot<SymbolInfoDouble(_Symbol,SYMBOL_VOLUME_MIN)||lot>SymbolInfoDouble(_Symbol,SYMBOL_VOLUME_MAX)||step<=0||MathAbs(lot/step-MathRound(lot/step))>1e-7){armed=false;stateText="REJECTED · BROKER LOT SIZE";return;}
  if(!InpEnableDemoOrders){armed=false;stateText="TRIGGER READY · MONITOR ONLY";Print("EASpaze simulated entry ",sideBuy?"BUY":"SELL"," config ",revision);return;}
- if(!MQLInfoInteger(MQL_TESTER)&&AccountInfoInteger(ACCOUNT_TRADE_MODE)!=ACCOUNT_TRADE_MODE_DEMO){armed=false;stateText="LIVE ORDERS DISABLED IN V0.1";return;}
+ if(!MQLInfoInteger(MQL_TESTER)&&AccountInfoInteger(ACCOUNT_TRADE_MODE)!=ACCOUNT_TRADE_MODE_DEMO){armed=false;stateText="LIVE ORDERS DISABLED IN V0.2";return;}
  bool ok=sideBuy?trade.Buy(lot,_Symbol,0,sl,tp,"EASpaze "+revision):trade.Sell(lot,_Symbol,0,sl,tp,"EASpaze "+revision);
  uint ret=trade.ResultRetcode();armed=false;stateText=ok&&(ret==TRADE_RETCODE_DONE||ret==TRADE_RETCODE_PLACED||ret==TRADE_RETCODE_DONE_PARTIAL)?"POSITION ACTIVE":"ORDER REJECTED · "+IntegerToString((int)ret);
  if(!ok)Print("EASpaze order rejected: ",trade.ResultRetcodeDescription());

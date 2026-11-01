@@ -29,11 +29,14 @@ try{
   assert.equal(e.moduleMatches({...sequence,zoneLookbackBars:2},expiredLine,3,bars,"buy"),true);
   assert.equal(e.moduleMatches({...sequence,zoneLookbackBars:1},expiredLine,3,bars,"buy"),true);
   const oldZone={module:sequence,values:[15,25,24,26],secondValues:[30,20,25,25]};
-  assert.equal(e.moduleMatches({...sequence,zoneLookbackBars:3},oldZone,3,bars,"buy"),true);
+  assert.equal(e.moduleMatches({...sequence,zoneLookbackBars:3},oldZone,3,bars,"buy"),false);
   assert.equal(e.moduleMatches({...sequence,zoneLookbackBars:2},oldZone,3,bars,"buy"),false);
   const sellLine={module:sequence,values:[85,82,75],secondValues:[70,75,80]};
   assert.equal(e.moduleMatches(sequence,sellLine,2,bars,"sell"),true);
-  const unsupported=structuredClone(strategy);unsupported.entry.signalGroup.conditions=[sequence];assert.ok(runtimeErrors(unsupported).some(message=>message.includes("สองจังหวะ")));
+  const cancelledSell={module:sequence,values:[85,75,78,77],secondValues:[70,80,77,78]};assert.equal(e.moduleMatches(sequence,cancelledSell,3,bars,"sell"),false);
+  const sameBarExit={module:sequence,values:[15,25],secondValues:[20,22]};assert.equal(e.moduleMatches(sequence,sameBarExit,1,bars,"buy"),true);
+  const expiredZone={module:sequence,values:[15,20,20,20],secondValues:[30,30,30,19]};assert.equal(e.moduleMatches({...sequence,zoneLookbackBars:2},expiredZone,3,bars,"buy"),false);assert.equal(e.moduleMatches(sequence,expiredZone,3,bars,"buy"),true);
+  const supported=structuredClone(strategy);supported.entry.signalGroup.conditions=[sequence];assert.deepEqual(runtimeErrors(supported),[]);assert.match(runtimeConfig(supported),/m0.zoneWait=3/);assert.match(runtimeConfig(supported),/engine=0.2.0/);
   const mc={kind:"ma_cross",fastPeriod:2,slowPeriod:3,averageType:"SMA",rule:"cross_up"},mb=[3,2,1,2,3].map(v=>({open:v,close:v,high:v+.1,low:v-.1}));assert.equal(e.evaluateGroup({logic:"all",conditions:[mc]},e.linesFor({logic:"all",conditions:[mc]},mb),4,mb,"buy").passed,true);
   const pc={kind:"price_cross",target:"price_level",level:2.5,rule:"cross_down"};assert.equal(e.evaluateGroup({logic:"all",conditions:[pc]},e.linesFor({logic:"all",conditions:[pc]},sb),3,sb,"sell").passed,true);
   const next=e.triggerFor(strategy,bars,2,"buy");assert.equal(next.index,3);assert.equal(next.price,bars[3].open);

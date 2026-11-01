@@ -29,4 +29,4 @@ export type Strategy = {
   protection: { maxSpreadPoints: number };
 };
 export const RULE_VERSION = "1.0.0" as const;
-export const ENGINE_VERSION = "0.1.0";
+export const ENGINE_VERSION = "0.2.0";

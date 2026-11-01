@@ -21,7 +21,7 @@ export default function RuntimeExport({ strategy, strategyId, isPublic, savedFin
   }
   return <section className="runtime-export" aria-label="เตรียม Strategy สำหรับ MT5">
     <h3>นำ Strategy ไปใช้กับ MT5</h3>
-    <p>EA รุ่น 0.1 · Simple ไม้เดียว · ทดลองบน Demo หรือ Strategy Tester</p>
+    <p>EA รุ่น 0.2 · Simple ไม้เดียว · ทดลองบน Demo หรือ Strategy Tester</p>
     <ol>
       <li><strong>ตรวจค่า Strategy</strong><br/>{errors.length ? "ยังมีค่าที่ต้องแก้ก่อนส่งให้ EA" : "กติกาเข้ากันได้กับ EA รุ่นนี้"}</li>
       <li><strong>บันทึกลงบัญชี</strong><br/>{savedMatches ? "บันทึกค่าปัจจุบันแล้ว" : "กดบันทึก Draft ลงบัญชีเพื่อเก็บค่าปัจจุบัน"}</li>
@@ -31,7 +31,7 @@ export default function RuntimeExport({ strategy, strategyId, isPublic, savedFin
     {errors.map((error, i) => <p className="runtime-error" key={i}>{error}</p>)}
     <button type="button" disabled={errors.length > 0} onClick={() => download(true)}>ดาวน์โหลด Config สำหรับ MT5</button>
     <details><summary>ตัวเลือกเพิ่มเติมและขั้นตอนติดตั้ง</summary>
-      <p>1. ติดตั้ง EA Engine 0.1.0 ใน MT5 และ Refresh ใน Navigator</p>
+      <p>1. ติดตั้ง EA Engine 0.2.0 ใน MT5 และ Refresh ใน Navigator</p>
       <p>2. วาง <strong>easpaze.cfg</strong> ในโฟลเดอร์ Terminal/Common/Files แล้วเปิด EA บน chart ของบัญชี Demo</p>
       <p>3. เริ่มด้วย <strong>InpEnableDemoOrders = false</strong> เพื่อตรวจสัญญาณ หากต้องการทดลองส่งออเดอร์ใน Demo ให้ปรับเป็น true หลังตรวจค่าครบ</p>
       <p>4. หากแก้ Strategy ส่วนตัว ให้ดาวน์โหลด Config ใหม่และแทนที่ไฟล์เดิม EA จะอ่านค่าใหม่เป็นระยะ</p>
