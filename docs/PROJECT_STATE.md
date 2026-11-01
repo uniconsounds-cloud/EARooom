@@ -255,6 +255,20 @@ Reason: Development can proceed without destabilizing production `main`.
 
 ## 8. Change Log
 
+### 2026-11-01 — Stochastic two-stage setup and demo EA 0.2
+
+**Added / Changed**
+
+- Builder explains the two stages: on closed candles Buy waits for %K below the lower level then for %K to cross above %D; Sell mirrors this at the upper level. The threshold and maximum wait in closed bars remain editable.
+- If %K leaves the zone before the crossover candle, the sequence is cancelled and must start again. When the crossover and exit occur in the same closed candle, the crossover is accepted. Entry Trigger remains separate.
+- The simulated evaluator, runtime serialization and MQL5 engine implement this rule; `zoneWait` is transferred in the runtime config. EA 0.2 is monitor-only by default and demo/tester-only for orders, and still supports Simple only.
+- EA and conformance script compiled with zero errors and warnings on the local MT5 installation; JavaScript strategy tests, lint and production build passed. MQL script and demo/backtest runtime have not yet been executed.
+
+**Compatibility / deferred**
+
+- EA 0.2 and its new config require matching versions; download a fresh config after updating. EA 0.1 rejects the new config and EA 0.2 rejects old config. Existing editable strategies remain readable.
+- Recovery execution, live orders, private device pairing and runtime verification in MT5 remain incomplete. Do not infer real-world trading performance from the simulated chart.
+
 ### 2026-11-01 — Current Vercel Preview URL recorded
 
 **Added**
