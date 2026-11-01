@@ -229,3 +229,9 @@
 .runtime-export .runtime-error {color:#a9676d;font-size:9px}
 @media(max-width:580px){.describe-choice{flex-direction:column;align-items:stretch}.preview-toolbar{align-items:flex-start;flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.entry-stage-tabs button,.preview-flow>div{transition:none!important}.entry-preview-card{animation:none}}
+.runtime-export h3 {margin:0;color:#3e3565;font-size:13px}
+.runtime-export ol {padding-left:20px;margin:12px 0;color:#5b6074;line-height:1.6}
+.runtime-export li {margin-bottom:9px}
+.runtime-export details {margin-top:12px}
+.runtime-export a {color:#6556d7;line-height:1.6}
+.runtime-export input {overflow:hidden;text-overflow:ellipsis}

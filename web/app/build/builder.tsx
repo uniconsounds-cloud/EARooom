@@ -7,8 +7,8 @@ import EntryPreviewChart from "./entry-preview-chart";
 
 const STEPS = ["Entry", "Manage", "Exit", "Protection"] as const;
 import type { EntryModuleKind, EntryModule, EntryConditionGroup, EntryTriggerKind, EntryTrigger, RecoveryPreset, RecoveryConditionKind, RecoveryCondition, AddOrderRule, ExitRuleKind, ExitRule, RecoveryConfig, LotMode, Strategy } from "@/lib/strategy/model";
-import DescribeStrategy from "./describe-strategy";
 import RuntimeExport from "./runtime-export";
+import { fingerprint } from "@/lib/strategy/runtime";
 import { isEditableStrategy, validateStrategy } from "@/lib/strategy/validation";
 const defaultEntryTrigger = (): EntryTrigger => ({ kind: "next_bar_open", maxWaitBars: 3 });
 const entryTriggerChoices: { id: EntryTriggerKind; label: string; description: string }[] = [
@@ -203,6 +203,8 @@ export default function Builder() {
   const [loaded, setLoaded] = useState(false);
   const [strategyId, setStrategyId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
+  const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
+  const [savedPublic, setSavedPublic] = useState(false);
   const [remoteBusy, setRemoteBusy] = useState(false);
   const [signalModuleToAdd, setSignalModuleToAdd] = useState<EntryModuleKind>("rsi");
   const [entryStage, setEntryStage] = useState<"signal" | "trigger">("signal");
@@ -229,6 +231,8 @@ export default function Builder() {
       } else {
         setStrategyId(data.id);
         setIsPublic(data.is_public ?? false);
+        setSavedFingerprint(fingerprint(data.config));
+        setSavedPublic(data.is_public ?? false);
         setNotice("เปิด Strategy จากบัญชีแล้ว");
       }
     }
@@ -252,6 +256,8 @@ export default function Builder() {
         setStrategyId(data.id);
         window.history.replaceState(null,"",`/build?id=${encodeURIComponent(data.id)}`);
       }
+      setSavedFingerprint(fingerprint(strategy));
+      setSavedPublic(isPublic);
       setNotice(isPublic ? "บันทึกแล้ว · Strategy นี้แสดงใน Explore ให้ชุมชนเห็น" : "บันทึก Strategy ในบัญชีแล้ว · ยังเป็นส่วนตัว");
     } catch {setNotice("บันทึกลงบัญชีไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองอีกครั้ง");} finally {setRemoteBusy(false);}
   }
@@ -336,7 +342,7 @@ export default function Builder() {
     try { localStorage.setItem(storageKey, JSON.stringify(strategy)); setNotice("บันทึก draft ในเบราว์เซอร์นี้แล้ว"); setLoaded(true); } catch { setNotice("บันทึกไม่ได้ กรุณาตรวจสอบพื้นที่จัดเก็บของเบราว์เซอร์"); }
   }
   function load() {
-    try { const raw = localStorage.getItem(storageKey); if (!raw) { setNotice("ยังไม่มี draft ที่บันทึกในเบราว์เซอร์นี้"); return; } const data: unknown = JSON.parse(raw); if (!isDraft(data)) { setNotice("ไม่สามารถอ่าน draft นี้ได้ กรุณาสร้าง draft ใหม่"); return; } setStrategy(normalizeStrategy(data)); setStrategyId(null); setIsPublic(false); window.history.replaceState(null, "", "/build"); setNotice("โหลด draft ในเบราว์เซอร์แล้ว · บันทึกลงบัญชีเป็น Strategy ใหม่ได้"); setLoaded(true); } catch { setNotice("ไม่สามารถอ่าน draft จากเบราว์เซอร์นี้ได้"); }
+    try { const raw = localStorage.getItem(storageKey); if (!raw) { setNotice("ยังไม่มี draft ที่บันทึกในเบราว์เซอร์นี้"); return; } const data: unknown = JSON.parse(raw); if (!isDraft(data)) { setNotice("ไม่สามารถอ่าน draft นี้ได้ กรุณาสร้าง draft ใหม่"); return; } setStrategy(normalizeStrategy(data)); setStrategyId(null); setIsPublic(false); setSavedFingerprint(null); setSavedPublic(false); window.history.replaceState(null, "", "/build"); setNotice("โหลด draft ในเบราว์เซอร์แล้ว · บันทึกลงบัญชีเป็น Strategy ใหม่ได้"); setLoaded(true); } catch { setNotice("ไม่สามารถอ่าน draft จากเบราว์เซอร์นี้ได้"); }
   }
   const field = (label: string, value: number, onChange: (n: number) => void, suffix: string, min = 1, increment = 1) => <label className="builder-field"><span>{label}</span><span className="input-wrap"><input type="number" min={min} step={increment} value={value || ""} onChange={e => onChange(num(e.target.value))} /><small>{suffix}</small></span></label>;
   const entryModuleEditor = (module: EntryModule, onChange: (next: EntryModule) => void) => <>
@@ -383,7 +389,6 @@ export default function Builder() {
         <section className="builder-panel">
           {step === 0 && <>
             <div className="panel-heading"><span className="panel-tag">STEP 01 · ENTRY</span><h2>ตั้งสัญญาณและจังหวะเข้าไม้แรก</h2><p>แบ่งการเข้าเป็นสองกลุ่มแยกกัน: กลุ่มแรกบอกว่ากลยุทธ์พร้อมแล้ว กลุ่มที่สองเป็นตัวกระตุ้นให้เข้าไม้แรก</p></div>
-            <DescribeStrategy strategy={strategy} onApply={next=>{setStrategy(normalizeStrategy(next));setNotice("นำผล AI มาเป็น Draft ในฟอร์มแล้ว · ตรวจและบันทึกลงบัญชีเมื่อพร้อม");}}/>
             <div className="entry-stage-tabs" role="tablist" aria-label="ขั้นตอนการตั้งค่า Entry">
               <button type="button" role="tab" aria-selected={entryStage==="signal"} className={entryStage==="signal"?"selected":""} onClick={()=>setEntryStage("signal")}><span>01</span><strong>Signal Setup</strong><small>สัญญาณ/Indicator ที่ต้องผ่าน</small></button>
               <button type="button" role="tab" aria-selected={entryStage==="trigger"} className={entryStage==="trigger"?"selected":""} onClick={()=>setEntryStage("trigger")}><span>02</span><strong>Entry Trigger</strong><small>จังหวะส่งคำสั่งหลัง Setup พร้อม</small></button>
@@ -453,7 +458,7 @@ export default function Builder() {
           <div className="panel-actions"><button type="button" className="button-back" onClick={()=>{setStep(Math.max(0,step-1));setNotice("");}} disabled={step===0}>← ย้อนกลับ</button>{step < 3 ? <button type="button" className="button-next" onClick={()=>{setStep(step+1);setNotice("");}}>ขั้นตอนถัดไป <span>→</span></button> : <button type="button" className="button-next" onClick={save}>บันทึก Draft <span>✓</span></button>}</div>
           {notice && <p className="builder-notice" role="status">{notice}</p>}
         </section>
-      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DEMO DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M1</option><option>M5</option><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><RuntimeExport strategy={strategy} strategyId={strategyId} isPublic={isPublic}/><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{hasManageOptions(strategy) ? manageMode(strategy) === "single" ? `${strategy.manage.lotSize} lot · Simple · 1 ไม้` : `${strategy.manage.lotSize} lot · ${recoveryPreset(strategy)==="custom"?"ชุด Custom":recoveryPresets.find(p=>p.id===recoveryPreset(strategy))?.title??"Recovery"} · แก้ ${strategy.manage.recovery?.maxAdds ?? 0} ไม้` : `${strategy.manage.lotSize} lot · สูงสุด ${strategy.manage.maxPositions} ไม้`}</strong></div><div><span>03 <b>Exit</b></span><strong>{exitSummary}</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><label className="publish-toggle"><input type="checkbox" checked={isPublic} onChange={e=>{if(e.target.checked){const error=valid(strategy);if(error){setNotice(error);return;}}setIsPublic(e.target.checked);}} /><span><strong>แชร์ใน Explore</strong><small>{valid(strategy) ? "กรอกเงื่อนไข Manage และ TP/SL ให้ครบก่อนแชร์" : "ทุกคนจะเห็นกติกานี้และคัดลอกได้ · ผล Backtest ยังไม่ผ่านการยืนยัน"}</small></span></label><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Draft ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link><Link href="/explore">Explore →</Link></div><div className="sidebar-foot"><span>✳</span><p>บันทึก Draft และปรับค่าได้ · การส่ง Config ให้ EA ต้องผ่านการตรวจความสามารถของรุ่นก่อน{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
+      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DEMO DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M1</option><option>M5</option><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><RuntimeExport strategy={strategy} strategyId={strategyId} isPublic={isPublic} savedFingerprint={savedFingerprint} savedPublic={savedPublic}/><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{hasManageOptions(strategy) ? manageMode(strategy) === "single" ? `${strategy.manage.lotSize} lot · Simple · 1 ไม้` : `${strategy.manage.lotSize} lot · ${recoveryPreset(strategy)==="custom"?"ชุด Custom":recoveryPresets.find(p=>p.id===recoveryPreset(strategy))?.title??"Recovery"} · แก้ ${strategy.manage.recovery?.maxAdds ?? 0} ไม้` : `${strategy.manage.lotSize} lot · สูงสุด ${strategy.manage.maxPositions} ไม้`}</strong></div><div><span>03 <b>Exit</b></span><strong>{exitSummary}</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><label className="publish-toggle"><input type="checkbox" checked={isPublic} onChange={e=>{if(e.target.checked){const error=valid(strategy);if(error){setNotice(error);return;}}setIsPublic(e.target.checked);}} /><span><strong>แชร์ใน Explore</strong><small>{valid(strategy) ? "กรอกเงื่อนไข Manage และ TP/SL ให้ครบก่อนแชร์" : "ทุกคนจะเห็นกติกานี้และคัดลอกได้ · ผล Backtest ยังไม่ผ่านการยืนยัน"}</small></span></label><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Draft ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link><Link href="/explore">Explore →</Link></div><div className="sidebar-foot"><span>✳</span><p>บันทึก Draft และปรับค่าได้ · การส่ง Config ให้ EA ต้องผ่านการตรวจความสามารถของรุ่นก่อน{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
       <p className="builder-footer">EASpaze · สร้างอย่างเข้าใจ ทดลองอย่างรอบคอบ</p>
     </main>
   </div>;
