@@ -235,3 +235,7 @@
 .runtime-export details {margin-top:12px}
 .runtime-export a {color:#6556d7;line-height:1.6}
 .runtime-export input {overflow:hidden;text-overflow:ellipsis}
+.stoch-readout {display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 0;font-size:11px;font-variant-numeric:tabular-nums}
+.stoch-readout span:first-child {color:#58dd99}
+.stoch-readout span:nth-child(2) {color:#ff9954}
+.stoch-readout small {color:#9eadd0}

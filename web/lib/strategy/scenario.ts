@@ -17,9 +17,12 @@ export function generateScenario(strategy:Strategy, variation=0) {
     const bars:Bar[]=Array.from({length:count},(_,i)=>{
       const j=i-(count-64);let drift=sign*.07;
       if(j>=0)drift=shape==="trend"?sign*.28:shape==="pullback"?(j<32?sign*.36:j<48?-sign*.5:sign*.55):shape==="breakout"?(j<40?Math.sin(j*.6)*.3:sign*.6):Math.cos(j*.35)*.7;
-      const open=close;close=Math.max(scale,open+scale*(drift+(random()-.5)*.8));
-      const wick=scale*(.2+random()*.5);
-      return {open,close,high:Math.max(open,close)+wick*random(),low:Math.min(open,close)-wick*random()};
+      const open=close;
+      // Mix small pauses and occasional large impulses; retain deterministic OHLC.
+      const burst=random(),size=burst<.2?.22:burst>.9?2.4:.7+random()*.8;
+      close=Math.max(scale,open+scale*(drift*.48+(random()-.5)*2*size));
+      const upper=scale*(.05+random()*random()*1.4),lower=scale*(.05+random()*random()*1.4);
+      return {open,close,high:Math.max(open,close)+upper,low:Math.min(open,close)-lower};
     });
     // Anchor the end of the warmup near a requested absolute price level.
     if(level){const offset=level-bars[count-64].close;bars.forEach(b=>{b.open+=offset;b.close+=offset;b.high+=offset;b.low+=offset;});}

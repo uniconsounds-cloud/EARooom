@@ -6,7 +6,7 @@ export type Line = { module: EntryModule; values: (number | null)[]; secondValue
 export const TF_SECONDS: Record<string, number> = { M1: 60, M5: 300, M15: 900, H1: 3600, H4: 14400, D1: 86400 };
 export const RULES: Record<EntryModule["kind"], readonly string[]> = {
   ema: ["with_direction","price_above","price_below","slope_with_direction"],
-  stochastic: ["cross_for_direction","extreme_for_direction","k_above_d","k_below_d"],
+  stochastic: ["cross_for_direction","extreme_for_direction","zone_then_cross","k_above_d","k_below_d"],
   rsi: ["recover_for_direction","cross_above_level","cross_below_level","above_level","below_level"],
   ma_cross: ["cross_for_direction","cross_up","cross_down"],
   price_cross: ["cross_for_direction","cross_up","cross_down"],
@@ -50,6 +50,15 @@ export function moduleMatches(module:EntryModule,line:Line,i:number,bars:Bar[],s
   const direction=rule==="cross_up"?"buy":rule==="cross_down"?"sell":side;
   if(module.kind==="ma_cross")return cross(p,v,pd,d,direction);
   if(module.kind==="price_cross")return cross(bars[i-1].close,bars[i].close,p,v,direction);
+  if(module.kind==="stochastic" && rule==="zone_then_cross") {
+    if(!cross(p,v,pd,d,side))return false;
+    const lookback=period(module.zoneLookbackBars,10);
+    for(let j=Math.max(0,i-lookback);j<i;j++) {
+      const k=line.values[j];
+      if(k!=null && (side==="buy" ? k<(module.level??20) : k>(module.upperLevel??80)))return true;
+    }
+    return false;
+  }
   if(module.kind==="stochastic")return rule==="k_above_d"?d!=null&&v>d:rule==="k_below_d"?d!=null&&v<d:rule==="extreme_for_direction"?side==="buy"?v<=(module.level??20):v>=(module.upperLevel??80):cross(p,v,pd,d,side);
   const low=module.level??30,high=module.upperLevel??70;
   if(rule==="above_level")return v>low;if(rule==="below_level")return v<high;

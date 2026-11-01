@@ -14,7 +14,7 @@ export function isEditableStrategy(value:unknown):value is Strategy {
   const optional=(o:Record<string,unknown>,keys:string[])=>keys.every(k=>o[k]===undefined||numeric(o[k]));
   if(!one(entry.type,["ma_cross","price_ma","rsi_recovery","gold_stoch_pullback"]))return false;
   if(!["fastPeriod","slowPeriod","maPeriod","rsiPeriod","rsiLow","rsiHigh"].every(k=>numeric(entry[k]))||!numeric(manage.lotSize)||!numeric(manage.maxPositions)||!numeric(exit.stopLossPips)||!numeric(exit.takeProfitPips)||!numeric(protection.maxSpreadPoints))return false;
-  for(const name of ["signalGroup","firstEntryGroup"]){const g=entry[name];if(g===undefined)continue;if(!record(g)||!one(g.logic,["all","any"])||!Array.isArray(g.conditions)||g.conditions.length>100)return false;for(const m of g.conditions)if(!record(m)||!(typeof m.kind==="string"&&Object.hasOwn(RULES,m.kind))||(m.rule!==undefined&&typeof m.rule!=="string")||!optional(m,["period","fastPeriod","slowPeriod","signalPeriod","level","upperLevel"]))return false;}
+  for(const name of ["signalGroup","firstEntryGroup"]){const g=entry[name];if(g===undefined)continue;if(!record(g)||!one(g.logic,["all","any"])||!Array.isArray(g.conditions)||g.conditions.length>100)return false;for(const m of g.conditions)if(!record(m)||!(typeof m.kind==="string"&&Object.hasOwn(RULES,m.kind))||(m.rule!==undefined&&typeof m.rule!=="string")||!optional(m,["period","fastPeriod","slowPeriod","signalPeriod","zoneLookbackBars","level","upperLevel"]))return false;}
   const trigger=(t:unknown)=>t===undefined||(record(t)&&one(t.kind,TRIGGERS)&&optional(t,["delaySeconds","priceMovePoints","emaPeriod","bufferPoints","maxWaitBars"]));
   if(!trigger(entry.trigger)||!optional(entry,["stochasticKPeriod","stochasticDPeriod","stochasticSlowing","stochasticOversold","stochasticOverbought","emaFilterPeriod"])||!optional(exit,["swingLookbackBars","swingBufferPoints","riskRewardRatio","basketStopLoss","basketTakeProfit"]))return false;
   const conditions=(v:unknown)=>Array.isArray(v)&&v.length<=100&&v.every(c=>record(c)&&one(c.kind,["candle_reversal","trend_filter","range_reentry","atr_gate","rsi_recovery","manual_confirm"])&&optional(c,["period","level"]));
@@ -46,7 +46,7 @@ export function validateStrategy(value:unknown,allowIncomplete=false):string[] {
       if(!m||!Object.hasOwn(RULES,m.kind)){errors.push("ไม่รองรับ Indicator นี้");continue;}
       if(m.rule&&!RULES[m.kind].includes(m.rule))errors.push(`ไม่รองรับกติกา ${m.kind}/${m.rule}`);
       if(allowIncomplete)continue;
-      for(const key of ["period","fastPeriod","slowPeriod","signalPeriod"] as const)if(m[key]!==undefined)number(m[key],1,2000,key,true);
+      for(const key of ["period","fastPeriod","slowPeriod","signalPeriod","zoneLookbackBars"] as const)if(m[key]!==undefined)number(m[key],1,2000,key,true);
       if(m.kind==="ma_cross"&&(m.fastPeriod??20)>=(m.slowPeriod??50))errors.push("MA เร็วต้องมี Period น้อยกว่า MA ช้า");
       if(m.averageType&&!["EMA","SMA"].includes(m.averageType))errors.push("เลือก EMA/SMA");
       if(m.target&&!["moving_average","price_level"].includes(m.target))errors.push("ตรวจชนิด Price cross");

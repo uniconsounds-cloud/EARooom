@@ -3,6 +3,7 @@ import { historyLength } from "./evaluator";
 import { validateStrategy } from "./validation";
 export function runtimeErrors(strategy:Strategy) {
   const errors=validateStrategy(strategy);
+  if(strategy.entry?.signalGroup?.conditions.some(m=>m.kind==="stochastic"&&m.rule==="zone_then_cross"))errors.push("EA 0.1 ยังไม่รองรับ Stochastic สองจังหวะ · กรุณารอ EA รุ่นใหม่ก่อนส่งไปรัน");
   if(!strategy.entry?.signalGroup?.conditions.length)errors.push("เพิ่ม Setup อย่างน้อย 1 โมดูล");
   if(strategy.manage?.mode==="recovery"||(strategy.manage?.mode===undefined&&strategy.manage?.maxPositions>1))errors.push("EA 0.1 รองรับ Simple เท่านั้น · Recovery ยังส่งไปรันไม่ได้");
   if(strategy.entry?.firstEntryGroup?.conditions.length)errors.push("จัดเงื่อนไขเข้าไม้เดิมเข้ากลุ่ม Setup ก่อนส่งให้ EA");
