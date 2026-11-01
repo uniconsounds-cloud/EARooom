@@ -22,6 +22,12 @@
 
 `main`
 
+### Current Vercel Preview URL
+
+`https://earooom-4zyfsv2d5-juntarasates-projects.vercel.app`
+
+Use this URL to review the current hosted preview associated with the development work. If Vercel later generates a new preview URL or a production domain is assigned, update this field rather than relying on chat history.
+
 ### Deployment workflow
 
 - Feature branches are used for development.
@@ -249,6 +255,16 @@ Reason: Development can proceed without destabilizing production `main`.
 
 ## 8. Change Log
 
+### 2026-11-01 — Current Vercel Preview URL recorded
+
+**Added**
+
+- Current preview URL: `https://earooom-4zyfsv2d5-juntarasates-projects.vercel.app`
+
+**Purpose**
+
+Make the current hosted development preview discoverable to all AI agents and developers without relying on chat history.
+
 ### 2026-11-01 — Documentation continuity system added
 
 **Added**
@@ -340,4 +356,3 @@ Before completing meaningful work, an AI agent or developer should verify:
 - [ ] I updated this file for meaningful changes.
 - [ ] I recorded anything removed, rejected, or deferred.
 - [ ] I left enough context for the next agent to continue without the original conversation.
-
