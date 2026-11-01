@@ -1,0 +1,9 @@
+{
+  "ruleVersion": "1.0.0",
+  "averages": [
+    {"kind":"sma","period":2,"values":[1,2,3,2],"expected":[null,1.5,2.5,2.5]},
+    {"kind":"ema","period":2,"values":[1,2,3,2],"expected":[null,1.5,2.5,2.1666666666666665]},
+    {"kind":"rsi","period":2,"values":[1,2,3,2],"expected":[null,null,100,50]},
+    {"kind":"rsi","period":2,"values":[1,1,1,1],"expected":[null,null,50,50]}
+  ]
+}

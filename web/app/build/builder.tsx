@@ -6,35 +6,10 @@ import { getSupabase } from "@/lib/supabase";
 import EntryPreviewChart from "./entry-preview-chart";
 
 const STEPS = ["Entry", "Manage", "Exit", "Protection"] as const;
-type Entry = "ma_cross" | "price_ma" | "rsi_recovery" | "gold_stoch_pullback";
-type Direction = "both" | "buy" | "sell";
-type LotMode = "fixed" | "multiplier";
-type EntryModuleKind = "ema" | "stochastic" | "rsi" | "ma_cross" | "price_cross";
-export type EntryModule = { kind: EntryModuleKind; period?: number; fastPeriod?: number; slowPeriod?: number; signalPeriod?: number; level?: number; upperLevel?: number; averageType?: "SMA" | "EMA"; rule?: string; target?: "moving_average" | "price_level" };
-export type EntryConditionGroup = { logic: "all" | "any"; conditions: EntryModule[] };
-type EntryTriggerKind = "immediate" | "next_bar_open" | "delay_seconds" | "price_move" | "break_signal_candle" | "pullback_to_ema" | "candle_reversal" | "manual";
-export type EntryTrigger = { kind: EntryTriggerKind; emaPeriod?: number; bufferPoints?: number; maxWaitBars?: number; delaySeconds?: number; priceMovePoints?: number; moveDirection?: "favorable" | "adverse" };
-type RecoveryPreset = "distance" | "candle" | "trend" | "range" | "atr" | "manual" | "custom";
-type RecoveryConditionKind = "candle_reversal" | "trend_filter" | "range_reentry" | "atr_gate" | "rsi_recovery" | "manual_confirm";
-type RecoveryCondition = { kind: RecoveryConditionKind; timeframe?: string; period?: number; level?: number; method?: string };
-type AddOrderRule = { logic: "all" | "any"; conditions: RecoveryCondition[]; trigger?: EntryTrigger };
-type ExitRuleKind = "average_target" | "trailing_average" | "partial_close" | "time_limit" | "signal_exit" | "manual_close";
-type ExitRule = { kind: ExitRuleKind; value?: number; secondaryValue?: number; timeframe?: string };
-type RecoveryConfig = {
-  maxAdds: number; spacingPoints: number; lotMode: LotMode; lotMultiplier: number;
-  preset?: RecoveryPreset; spacingMode?: "fixed" | "atr"; cooldownBars?: number;
-  confirmationTimeframe?: string; trendFilter?: "ema_slope" | "ma_alignment";
-  rangeSignal?: "band_reentry" | "boundary_rejection"; atrPeriod?: number;
-  atrMultiplier?: number; pauseOnAtrExpansion?: boolean; maxWaitBars?: number;
-  orderRules?: AddOrderRule[];
-};
-export type Strategy = {
-  schemaVersion: 1; strategyType?: "gold_scalping_recovery"; name: string; symbol: string; timeframe: string; direction: Direction;
-  entry: { type: Entry; fastPeriod: number; slowPeriod: number; maPeriod: number; rsiPeriod: number; rsiLow: number; rsiHigh: number; stochasticKPeriod?: number; stochasticDPeriod?: number; stochasticSlowing?: number; stochasticOversold?: number; stochasticOverbought?: number; emaFilterPeriod?: number; trigger?: EntryTrigger; logic?: "all" | "any"; conditions?: RecoveryCondition[]; signalGroup?: EntryConditionGroup; firstEntryGroup?: EntryConditionGroup };
-  manage: { lotSize: number; maxPositions: number; mode?: "single" | "recovery"; recovery?: RecoveryConfig };
-  exit: { stopLossPips: number; takeProfitPips: number; stopMode?: "fixed_pips" | "swing"; swingLookbackBars?: number; swingBufferPoints?: number; riskRewardRatio?: number; basketStopLoss?: number; basketTakeProfit?: number; closeRules?: ExitRule[] };
-  protection: { maxSpreadPoints: number };
-};
+import type { EntryModuleKind, EntryModule, EntryConditionGroup, EntryTriggerKind, EntryTrigger, RecoveryPreset, RecoveryConditionKind, RecoveryCondition, AddOrderRule, ExitRuleKind, ExitRule, RecoveryConfig, LotMode, Strategy } from "@/lib/strategy/model";
+import DescribeStrategy from "./describe-strategy";
+import RuntimeExport from "./runtime-export";
+import { isEditableStrategy, validateStrategy } from "@/lib/strategy/validation";
 const defaultEntryTrigger = (): EntryTrigger => ({ kind: "next_bar_open", maxWaitBars: 3 });
 const entryTriggerChoices: { id: EntryTriggerKind; label: string; description: string }[] = [
   { id: "immediate", label: "ทันทีเมื่อพร้อม", description: "ส่ง Market order ที่ tick ถัดไปหลังสัญญาณ Setup ผ่าน" },
@@ -111,12 +86,16 @@ function normalizeStrategy(s: Strategy): Strategy {
         : strategy.entry.type === "rsi_recovery"
           ? [{ kind: "rsi" as const, period: strategy.entry.rsiPeriod, level: strategy.entry.rsiLow, upperLevel: strategy.entry.rsiHigh, rule: "recover_for_direction" }]
           : defaultSignalGroup.conditions;
+    const initialGroup=strategy.entry.signalGroup ?? {logic:"all" as const,conditions:legacySignal};
+    const oldGroup=strategy.entry.firstEntryGroup;
+    const mergeLegacy=oldGroup&&oldGroup.logic==="all"&&initialGroup.logic==="all";
     return {
       ...strategy,
+      contractVersion: "1.0.0",
       entry: {
         ...strategy.entry,
-        signalGroup: strategy.entry.signalGroup ?? { logic: "all", conditions: legacySignal },
-        ...(strategy.entry.firstEntryGroup ? { firstEntryGroup: strategy.entry.firstEntryGroup } : {}),
+        signalGroup: mergeLegacy?{logic:"all",conditions:[...initialGroup.conditions,...oldGroup.conditions]}:initialGroup,
+        firstEntryGroup: mergeLegacy?undefined:oldGroup,
         stochasticKPeriod: strategy.entry.stochasticKPeriod ?? 15,
         stochasticDPeriod: strategy.entry.stochasticDPeriod ?? 2,
         stochasticSlowing: strategy.entry.stochasticSlowing ?? 9,
@@ -148,6 +127,7 @@ function normalizeStrategy(s: Strategy): Strategy {
   return withTriggers({ ...s, manage: { ...s.manage, recovery } });
 }
 function validDraft(s: Strategy): string | null {
+  const errors=validateStrategy(s,true);if(errors.length)return errors[0];
   if (!s.name.trim() || !s.symbol.trim()) return "กรุณาใส่ชื่อ Strategy และสัญลักษณ์ที่ต้องการเทรด";
   if (![s.entry.fastPeriod,s.entry.slowPeriod,s.entry.maPeriod,s.entry.rsiPeriod,s.manage.maxPositions].every(n => Number.isInteger(n) && n >= 1)) return "จำนวนช่วงและจำนวนไม้ต้องเป็นจำนวนเต็มอย่างน้อย 1";
   if (s.entry.type === "ma_cross" && s.entry.fastPeriod >= s.entry.slowPeriod) return "จำนวนช่วงของเส้นเร็วต้องน้อยกว่าเส้นช้า";
@@ -214,11 +194,7 @@ function valid(s: Strategy): string | null {
   }
   return null;
 }
-function isDraft(value: unknown): value is Strategy {
-  if (!value || typeof value !== "object") return false;
-  const s = value as Strategy;
-  return s.schemaVersion === 1 && (s.strategyType === undefined || s.strategyType === "gold_scalping_recovery") && typeof s.name === "string" && typeof s.symbol === "string" && ["M1","M5","M15","H1","H4","D1"].includes(s.timeframe) && ["both","buy","sell"].includes(s.direction) && !!s.entry && ["ma_cross","price_ma","rsi_recovery","gold_stoch_pullback"].includes(s.entry.type) && !!s.manage && !!s.exit && !!s.protection && !validDraft(s);
-}
+function isDraft(value: unknown): value is Strategy { return isEditableStrategy(value); }
 
 export default function Builder() {
   const [step, setStep] = useState(0);
@@ -354,7 +330,7 @@ export default function Builder() {
   const removeExitRule = (index: number) => setStrategy(s => ({ ...s, exit: { ...s.exit, closeRules: (s.exit.closeRules ?? []).filter((_, ruleIndex) => ruleIndex !== index) } }));
   const summarizeGroup = (group?: EntryConditionGroup) => group?.conditions.map(item => item.kind === "ema" ? `EMA ${item.period ?? 400}` : item.kind === "stochastic" ? `Stoch ${item.period ?? 15}/${item.signalPeriod ?? 2}/${item.slowPeriod ?? 9}` : item.kind === "rsi" ? `RSI ${item.period ?? 14}` : item.kind === "ma_cross" ? `${item.averageType ?? "SMA"} ${item.fastPeriod ?? 20}/${item.slowPeriod ?? 50} cross` : item.target === "price_level" ? `Price × ${item.level ?? "level"}` : `Price × ${item.averageType ?? "EMA"} ${item.period ?? 50}`).join(" + ") || "ยังไม่ตั้ง";
   const summary = `Setup: ${summarizeGroup(strategy.entry.signalGroup)} · Trigger: ${entryTriggerChoices.find(item=>item.id===(strategy.entry.trigger??defaultEntryTrigger()).kind)?.label ?? "เปิดแท่งถัดไป"}`;
-  const exitSummary = usesBasketExit(strategy) ? `Basket SL ${strategy.exit.basketStopLoss || "ยังไม่ตั้ง"} · TP ${strategy.exit.basketTakeProfit || "ยังไม่ตั้ง"} · ${strategy.exit.closeRules?.length??0} วิธีเสริม` : strategy.entry.type === "gold_stoch_pullback" ? `SL Swing · TP ${strategy.exit.riskRewardRatio??1.5}R` : `SL ${strategy.exit.stopLossPips} / TP ${strategy.exit.takeProfitPips} pips`;
+  const exitSummary = usesBasketExit(strategy) ? `Basket SL ${strategy.exit.basketStopLoss || "ยังไม่ตั้ง"} · TP ${strategy.exit.basketTakeProfit || "ยังไม่ตั้ง"} · ${strategy.exit.closeRules?.length??0} วิธีเสริม` : strategy.exit.stopMode === "swing" ? `SL Swing · TP ${strategy.exit.riskRewardRatio??1.5}R` : `SL ${strategy.exit.stopLossPips} / TP ${strategy.exit.takeProfitPips} pips`;
   function save() {
     const error = validDraft(strategy); if (error) { setNotice(error); return; }
     try { localStorage.setItem(storageKey, JSON.stringify(strategy)); setNotice("บันทึก draft ในเบราว์เซอร์นี้แล้ว"); setLoaded(true); } catch { setNotice("บันทึกไม่ได้ กรุณาตรวจสอบพื้นที่จัดเก็บของเบราว์เซอร์"); }
@@ -376,7 +352,7 @@ export default function Builder() {
     return <section className="entry-condition-group" aria-label={title}><div className="entry-group-heading"><div><span className="phase-label">{groupKey === "signalGroup" ? "จังหวะ 1 · Setup" : "จังหวะ 2 · Trigger"}</span><h3>{title}</h3><p>{description}</p></div><span className="module-count">{group.conditions.length} เงื่อนไข</span></div>
       <div className="field-grid entry-group-logic"><label className="builder-field"><span>รวมเงื่อนไข</span><span className="input-wrap"><select value={group.logic} onChange={e=>updateEntryGroup(groupKey,{logic:e.target.value as "all"|"any"})}><option value="all">ALL · ต้องผ่านทุกข้อ</option><option value="any">ANY · ผ่านข้อใดก็ได้</option></select></span></label></div>
       <div className="entry-module-list">{group.conditions.map((module,index)=><article className="entry-module-card" key={`${groupKey}-${index}`}><div className="condition-row-heading"><div><strong>{index+1}. {moduleLabels[module.kind]}</strong><small>หนึ่งโมดูลต่อหนึ่ง Indicator/กติกา</small></div><button type="button" className="remove-condition" onClick={()=>removeEntryModule(groupKey,index)}>ลบ</button></div>{entryModuleEditor(module,next=>updateEntryModule(groupKey,index,next))}</article>)}</div>
-      <div className="entry-module-adder"><label className="builder-field"><span>เลือกโมดูลที่จะเพิ่ม</span><span className="input-wrap"><select value={moduleToAdd} onChange={e=>setModuleToAdd(e.target.value as EntryModuleKind)}>{entryModuleKinds.map(kind=><option key={kind} value={kind}>{moduleLabels[kind]}</option>)}</select></span></label><button type="button" className="add-condition-button" onClick={()=>addEntryModule(groupKey,moduleToAdd)}>＋ เพิ่มโมดูลในกลุ่มนี้</button></div>
+      <div className="entry-module-adder"><label className="builder-field"><span>เลือกโมดูลที่จะเพิ่ม</span><span className="input-wrap"><select value={moduleToAdd} onChange={e=>setModuleToAdd(e.target.value as EntryModuleKind)}>{entryModuleKinds.map(kind=><option key={kind} value={kind}>{moduleLabels[kind]}</option>)}</select></span></label><button type="button" className="add-condition-button" disabled={group.conditions.length>=12} onClick={()=>addEntryModule(groupKey,moduleToAdd)}>＋ เพิ่มโมดูลในกลุ่มนี้</button></div>
     </section>;
   };
   const triggerSettings = (trigger: EntryTrigger, onChange: (patch: Partial<EntryTrigger>) => void) => <>
@@ -407,19 +383,21 @@ export default function Builder() {
         <section className="builder-panel">
           {step === 0 && <>
             <div className="panel-heading"><span className="panel-tag">STEP 01 · ENTRY</span><h2>ตั้งสัญญาณและจังหวะเข้าไม้แรก</h2><p>แบ่งการเข้าเป็นสองกลุ่มแยกกัน: กลุ่มแรกบอกว่ากลยุทธ์พร้อมแล้ว กลุ่มที่สองเป็นตัวกระตุ้นให้เข้าไม้แรก</p></div>
+            <DescribeStrategy strategy={strategy} onApply={next=>{setStrategy(normalizeStrategy(next));setNotice("นำผล AI มาเป็น Draft ในฟอร์มแล้ว · ตรวจและบันทึกลงบัญชีเมื่อพร้อม");}}/>
             <div className="entry-stage-tabs" role="tablist" aria-label="ขั้นตอนการตั้งค่า Entry">
               <button type="button" role="tab" aria-selected={entryStage==="signal"} className={entryStage==="signal"?"selected":""} onClick={()=>setEntryStage("signal")}><span>01</span><strong>Signal Setup</strong><small>สัญญาณ/Indicator ที่ต้องผ่าน</small></button>
               <button type="button" role="tab" aria-selected={entryStage==="trigger"} className={entryStage==="trigger"?"selected":""} onClick={()=>setEntryStage("trigger")}><span>02</span><strong>Entry Trigger</strong><small>จังหวะส่งคำสั่งหลัง Setup พร้อม</small></button>
             </div>
             <div className="entry-preview-layout"><div className="entry-config-stage">
               {entryStage==="signal" ? <>
+                {strategy.entry.firstEntryGroup&&<div className="builder-callout">มีเงื่อนไขจาก Entry รุ่นเดิมที่ใช้ ANY โปรดตรวจและย้ายเข้ากลุ่ม Setup ก่อนใช้ EA{renderEntryGroup("firstEntryGroup","เงื่อนไขจากรุ่นเดิม","ข้อมูลยังเก็บไว้ครบ แก้ในกลุ่มนี้ได้",signalModuleToAdd,setSignalModuleToAdd)}</div>}
                 {renderEntryGroup("signalGroup", "สัญญาณก่อนเข้าไม้", "ใช้เป็น Setup หรือ Filter ก่อนเริ่มรอจังหวะเข้าไม้แรก", signalModuleToAdd, setSignalModuleToAdd)}
                 <p className="signal-explanation">รวม Indicator ด้วย ALL ให้ผ่านทุกข้อ หรือ ANY ให้ผ่านข้อใดข้อหนึ่ง · ค่าตั้งต้น EMA + Stochastic ปรับแก้ได้</p>
                 <a className="strategy-source" href="https://www.youtube.com/watch?v=AM5MGdbMbdo" target="_blank" rel="noreferrer">ที่มาของค่า EMA + Stochastic เริ่มต้น · ดูคลิป ↗</a>
                 <div className="direction-group"><span>ทิศทางที่ต้องการเทรด</span><div>{([ ["both","Buy + Sell"],["buy","Buy เท่านั้น"],["sell","Sell เท่านั้น"] ] as const).map(([value,label])=><button key={value} type="button" className={strategy.direction === value ? "selected" : ""} aria-pressed={strategy.direction === value} onClick={()=>setStrategy(s=>({...s,direction:value}))}>{label}</button>)}</div></div>
               </> : entryTriggerSettings(strategy.entry.trigger??defaultEntryTrigger(),patch=>setStrategy(s=>({...s,entry:{...s.entry,trigger:{...(s.entry.trigger??defaultEntryTrigger()),...patch}}})))}
             </div><EntryPreviewChart strategy={strategy} stage={entryStage} onTimeframeChange={timeframe=>setStrategy(s=>({...s,timeframe}))}/></div>
-            <div className="builder-callout">รายการนี้เป็นการตั้งค่า Strategy บนเว็บ · EA ที่เชื่อมอยู่ในขณะนี้ยังเป็น Probe อ่านข้อมูลอย่างเดียว และยังไม่ส่งคำสั่งเทรด</div>
+            <div className="builder-callout">ตั้งค่าและดูตัวอย่างบนกราฟได้ทันที · หากต้องการทดลองใน MT5 ให้ Export Config จากกล่อง EA Engine แล้วเริ่มด้วยโหมด Monitor</div>
           </>}
           {step === 1 && hasManageOptions(strategy) && <>
             <div className="panel-heading"><span className="panel-tag">STEP 02 · MANAGE</span><h2>เลือกรูปแบบการออกไม้</h2><p>Strategy เดิมแก้ไขรูปแบบการจัดการไม้ได้ โดยยังคงค่า Entry และ Exit เดิมไว้</p></div>
@@ -454,7 +432,7 @@ export default function Builder() {
                   </div></details>})}</div>
                 </div>; })()}
               </>}
-            </div><div className="builder-callout">ค่าที่แสดงเป็นจุดเริ่มต้นสำหรับปรับแต่งและทดสอบ · การเพิ่มไม้ขณะขาดทุนเพิ่ม exposure · EA ที่เชื่อมอยู่ยังเป็น Probe อ่านอย่างเดียว ไม่มีคำสั่งซื้อขายหรือ Backtest</div>
+            </div><div className="builder-callout">Simple ส่ง Config ให้ EA รุ่นแรกได้ · Recovery ยังบันทึกและปรับแต่งบนเว็บได้ แต่ยังส่งไปรันกับ EA รุ่นนี้ไม่ได้</div>
           </>}
           {step === 2 && usesBasketExit(strategy) && <><div className="panel-heading"><span className="panel-tag">STEP 03 · EXIT</span><h2>เลือกวิธีปิดหรือคลายชุด</h2><p>ตั้งขีดจำกัด Basket TP/SL แล้วเพิ่มวิธีจัดการอื่นได้หลายข้อ · เงื่อนไขปิดเต็มชุดที่เกิดก่อนจะเป็นตัวปิดชุด</p></div>{strategy.entry.type==="gold_stoch_pullback"&&<div className="mode-detail-note">เมื่อเลือก Recovery ระบบจะใช้ Basket TP/SL ปิดทั้งชุด · SL จาก Swing High/Low และ TP แบบ Risk:Reward จะใช้กับโหมด Simple เท่านั้น</div>}<div className="settings-box"><div className="settings-title">ขีดจำกัดหลักของทั้งชุด <span>ใช้กับไม้แก้ทุกลำดับ</span></div><div className="field-grid">{field("ปิดทั้งชุดเมื่อกำไรถึง",strategy.exit.basketTakeProfit ?? 0,n=>setStrategy(s=>({...s,exit:{...s.exit,basketTakeProfit:n}})),"เงิน",0,0.01)}{field("ปิดทั้งชุดเมื่อขาดทุนถึง",strategy.exit.basketStopLoss ?? 0,n=>setStrategy(s=>({...s,exit:{...s.exit,basketStopLoss:n}})),"เงิน",0,0.01)}</div><p className="signal-explanation">Basket Stop Loss เป็นขอบเขตขาดทุนรวม ไม่ใช่ SL แยกรายออเดอร์ · กำหนด Basket TP/SL มากกว่า 0 ก่อนแชร์</p></div>
             <div className="exit-rules-panel"><div className="order-rules-heading"><div><strong>วิธีปิดเพิ่มเติม</strong><small>เพิ่มได้หลายข้อ · เงื่อนไขปิดเต็มชุดใช้แบบข้อใดเกิดก่อน</small></div></div>
@@ -470,12 +448,12 @@ export default function Builder() {
               <p className="signal-explanation">การปิดบางส่วนกับการปิดคู่/hedge ทำงานต่างกันตามประเภทบัญชี MT5; หน้านี้กำลังบันทึก config และยังไม่ส่งคำสั่งจริง</p>
             </div>
           </>}
-          {step === 2 && !usesBasketExit(strategy) && <><div className="panel-heading"><span className="panel-tag">STEP 03 · EXIT</span><h2>ตั้ง TP และ SL ของไม้เดียว</h2><p>Simple เปิดออเดอร์ครั้งเดียวตาม Entry แล้วปิดเมื่อถึง Take Profit หรือ Stop Loss</p></div><div className="settings-box">{strategy.entry.type==="gold_stoch_pullback"?<><div className="field-grid"><label className="builder-field"><span>วิธีวาง Stop Loss</span><span className="input-wrap"><select value={strategy.exit.stopMode??"swing"} onChange={e=>setStrategy(s=>({...s,exit:{...s.exit,stopMode:e.target.value as "fixed_pips"|"swing"}}))}><option value="swing">จุด Swing High/Low ก่อนหน้า</option><option value="fixed_pips">ระยะคงที่</option></select></span></label>{strategy.exit.stopMode==="fixed_pips"?field("Stop Loss",strategy.exit.stopLossPips,n=>setStrategy(s=>({...s,exit:{...s.exit,stopLossPips:n}})),"pips"): <>{field("Lookback หา Swing",strategy.exit.swingLookbackBars??10,n=>setStrategy(s=>({...s,exit:{...s.exit,swingLookbackBars:n}})),"แท่งปิด",1)}{field("Buffer จาก Swing",strategy.exit.swingBufferPoints??0,n=>setStrategy(s=>({...s,exit:{...s.exit,swingBufferPoints:n}})),"points",0,0.1)}</>}{field("Risk : Reward",strategy.exit.riskRewardRatio??1.5,n=>setStrategy(s=>({...s,exit:{...s.exit,riskRewardRatio:n}})),"R",0.1,0.1)}</div><p className="signal-explanation">Buy: SL ต่ำกว่า Low ต่ำสุดใน Lookback · Sell: SL สูงกว่า High สูงสุด · TP คำนวณจากระยะ Entry ถึง SL × Risk:Reward · ค่าเริ่มต้น 1.5R ตามที่คุณดูจากคลิป</p><p className="signal-explanation">Lookback 10 แท่งและ Buffer 0 เป็นค่าเริ่มต้นสำหรับปรับแต่ง ไม่ใช่ตัวเลขที่ยืนยันจากคลิป</p></>:<><div className="field-grid">{field("Stop Loss",strategy.exit.stopLossPips,n=>setStrategy(s=>({...s,exit:{...s.exit,stopLossPips:n}})),"pips")}{field("Take Profit",strategy.exit.takeProfitPips,n=>setStrategy(s=>({...s,exit:{...s.exit,takeProfitPips:n}})),"pips")}</div><p className="signal-explanation">ค่า pip อาจต่างกันตามสัญลักษณ์และโบรกเกอร์ ควรตรวจสอบก่อนใช้งานจริง</p></>}</div></>}
-          {step === 3 && <><div className="panel-heading"><span className="panel-tag">STEP 04 · PROTECTION</span><h2>ตั้งขอบเขตก่อนเริ่ม</h2><p>จำกัด spread สูงสุดที่ยอมรับได้ก่อนเปิดไม้ใหม่</p></div><div className="settings-box"><div className="field-grid">{field("Spread สูงสุด",strategy.protection.maxSpreadPoints,n=>setStrategy(s=>({...s,protection:{...s.protection,maxSpreadPoints:n}})),"points")}</div><p className="signal-explanation">เมื่อ spread เกินค่านี้ กติกาที่ตั้งไว้จะไม่เปิดไม้ใหม่ · points เป็นหน่วยของโบรกเกอร์ ไม่ใช่ pips เสมอไป</p></div><div className="builder-callout">✳ Template นี้เก็บค่า config บนเว็บเท่านั้น ตอนนี้ EA ที่เชื่อมอยู่เป็น Connectivity Probe แบบอ่านอย่างเดียว ยังไม่ส่งคำสั่งซื้อขายหรือ Backtest</div></>}
+          {step === 2 && !usesBasketExit(strategy) && <><div className="panel-heading"><span className="panel-tag">STEP 03 · EXIT</span><h2>ตั้ง TP และ SL ของไม้เดียว</h2><p>Buy วาง SL ใต้ราคา · Sell วาง SL เหนือราคา</p></div><div className="settings-box"><div className="field-grid"><label className="builder-field"><span>วิธีวาง Stop Loss</span><span className="input-wrap"><select value={strategy.exit.stopMode??"fixed_pips"} onChange={e=>setStrategy(s=>({...s,exit:{...s.exit,stopMode:e.target.value as "fixed_pips"|"swing"}}))}><option value="swing">Swing High/Low ก่อนหน้า + TP ตาม RR</option><option value="fixed_pips">SL / TP ระยะคงที่</option></select></span></label>{strategy.exit.stopMode==="swing"?<>{field("Lookback หา Swing",strategy.exit.swingLookbackBars??10,n=>setStrategy(s=>({...s,exit:{...s.exit,swingLookbackBars:n}})),"แท่งปิด",1)}{field("Buffer จาก Swing",strategy.exit.swingBufferPoints??0,n=>setStrategy(s=>({...s,exit:{...s.exit,swingBufferPoints:n}})),"points",0,0.1)}{field("Risk : Reward",strategy.exit.riskRewardRatio??1.5,n=>setStrategy(s=>({...s,exit:{...s.exit,riskRewardRatio:n}})),"R",0.1,0.1)}</>:<>{field("Stop Loss",strategy.exit.stopLossPips,n=>setStrategy(s=>({...s,exit:{...s.exit,stopLossPips:n}})),"pips")}{field("Take Profit",strategy.exit.takeProfitPips,n=>setStrategy(s=>({...s,exit:{...s.exit,takeProfitPips:n}})),"pips")}</>}</div><p className="signal-explanation">Swing ใช้แท่งปิดก่อนสัญญาณพร้อม: Buy หา Low ต่ำสุด · Sell หา High สูงสุด · TP = ระยะ Entry ถึง SL × RR · pip และ point ต้องตรงกับข้อมูล Symbol ของโบรกเกอร์</p></div></>}
+          {step === 3 && <><div className="panel-heading"><span className="panel-tag">STEP 04 · PROTECTION</span><h2>ตั้งขอบเขตก่อนเริ่ม</h2><p>จำกัด spread สูงสุดที่ยอมรับได้ก่อนเปิดไม้ใหม่</p></div><div className="settings-box"><div className="field-grid">{field("Spread สูงสุด",strategy.protection.maxSpreadPoints,n=>setStrategy(s=>({...s,protection:{...s.protection,maxSpreadPoints:n}})),"points")}</div><p className="signal-explanation">เมื่อ spread เกินค่านี้ กติกาที่ตั้งไว้จะไม่เปิดไม้ใหม่ · points เป็นหน่วยของโบรกเกอร์ ไม่ใช่ pips เสมอไป</p></div><div className="builder-callout">✳ ตรวจค่าและ Symbol ก่อนส่งให้ EA · รุ่น 0.1 เริ่มด้วย Monitor และเปิดออเดอร์ได้เฉพาะ Demo / Strategy Tester</div></>}
           <div className="panel-actions"><button type="button" className="button-back" onClick={()=>{setStep(Math.max(0,step-1));setNotice("");}} disabled={step===0}>← ย้อนกลับ</button>{step < 3 ? <button type="button" className="button-next" onClick={()=>{setStep(step+1);setNotice("");}}>ขั้นตอนถัดไป <span>→</span></button> : <button type="button" className="button-next" onClick={save}>บันทึก Draft <span>✓</span></button>}</div>
           {notice && <p className="builder-notice" role="status">{notice}</p>}
         </section>
-      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DEMO DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M1</option><option>M5</option><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{hasManageOptions(strategy) ? manageMode(strategy) === "single" ? `${strategy.manage.lotSize} lot · Simple · 1 ไม้` : `${strategy.manage.lotSize} lot · ${recoveryPreset(strategy)==="custom"?"ชุด Custom":recoveryPresets.find(p=>p.id===recoveryPreset(strategy))?.title??"Recovery"} · แก้ ${strategy.manage.recovery?.maxAdds ?? 0} ไม้` : `${strategy.manage.lotSize} lot · สูงสุด ${strategy.manage.maxPositions} ไม้`}</strong></div><div><span>03 <b>Exit</b></span><strong>{exitSummary}</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><label className="publish-toggle"><input type="checkbox" checked={isPublic} onChange={e=>{if(e.target.checked){const error=valid(strategy);if(error){setNotice(error);return;}}setIsPublic(e.target.checked);}} /><span><strong>แชร์ใน Explore</strong><small>{valid(strategy) ? "กรอกเงื่อนไข Manage และ TP/SL ให้ครบก่อนแชร์" : "ทุกคนจะเห็นกติกานี้และคัดลอกได้ · ผล Backtest ยังไม่ผ่านการยืนยัน"}</small></span></label><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Draft ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link><Link href="/explore">Explore →</Link></div><div className="sidebar-foot"><span>✳</span><p>บันทึกเป็น Draft ได้โดยยังไม่กรอก TP/SL ครบ แต่การแชร์หรือส่งไป Backtest ยังทำไม่ได้ · EA ที่เชื่อมอยู่เป็น Probe อ่านอย่างเดียว{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
+      </div><aside className="builder-sidebar"><div className="sidebar-top"><span>YOUR STRATEGY</span><span className="draft-badge">● DEMO DRAFT</span></div><label className="sidebar-name">ชื่อ Strategy<input value={strategy.name} maxLength={80} onChange={e=>setStrategy(s=>({...s,name:e.target.value}))} /></label><div className="sidebar-fields"><label>สัญลักษณ์<input value={strategy.symbol} maxLength={20} onChange={e=>setStrategy(s=>({...s,symbol:e.target.value.toUpperCase()}))} /></label><label>Timeframe<select value={strategy.timeframe} onChange={e=>setStrategy(s=>({...s,timeframe:e.target.value}))}><option>M1</option><option>M5</option><option>M15</option><option>H1</option><option>H4</option><option>D1</option></select></label></div><RuntimeExport strategy={strategy} strategyId={strategyId} isPublic={isPublic}/><div className="summary-list"><div><span>01 <b>Entry</b></span><strong>{summary}</strong></div><div><span>02 <b>Manage</b></span><strong>{hasManageOptions(strategy) ? manageMode(strategy) === "single" ? `${strategy.manage.lotSize} lot · Simple · 1 ไม้` : `${strategy.manage.lotSize} lot · ${recoveryPreset(strategy)==="custom"?"ชุด Custom":recoveryPresets.find(p=>p.id===recoveryPreset(strategy))?.title??"Recovery"} · แก้ ${strategy.manage.recovery?.maxAdds ?? 0} ไม้` : `${strategy.manage.lotSize} lot · สูงสุด ${strategy.manage.maxPositions} ไม้`}</strong></div><div><span>03 <b>Exit</b></span><strong>{exitSummary}</strong></div><div><span>04 <b>Protection</b></span><strong>Spread ไม่เกิน {strategy.protection.maxSpreadPoints} points</strong></div></div><label className="publish-toggle"><input type="checkbox" checked={isPublic} onChange={e=>{if(e.target.checked){const error=valid(strategy);if(error){setNotice(error);return;}}setIsPublic(e.target.checked);}} /><span><strong>แชร์ใน Explore</strong><small>{valid(strategy) ? "กรอกเงื่อนไข Manage และ TP/SL ให้ครบก่อนแชร์" : "ทุกคนจะเห็นกติกานี้และคัดลอกได้ · ผล Backtest ยังไม่ผ่านการยืนยัน"}</small></span></label><button type="button" className="account-save" disabled={remoteBusy} onClick={saveRemote}>{remoteBusy ? "กำลังบันทึก…" : strategyId ? "บันทึกการแก้ไขในบัญชี" : "บันทึก Draft ลงบัญชี"}</button><div className="sidebar-account-links"><Link href="/account">เข้าสู่ระบบ</Link><Link href="/strategies">My Strategies →</Link><Link href="/explore">Explore →</Link></div><div className="sidebar-foot"><span>✳</span><p>บันทึก Draft และปรับค่าได้ · การส่ง Config ให้ EA ต้องผ่านการตรวจความสามารถของรุ่นก่อน{loaded ? " · โหลด Draft กลับมาแก้ไขได้" : ""}</p></div></aside></div>
       <p className="builder-footer">EASpaze · สร้างอย่างเข้าใจ ทดลองอย่างรอบคอบ</p>
     </main>
   </div>;

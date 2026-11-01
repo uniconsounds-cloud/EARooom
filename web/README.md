@@ -28,3 +28,11 @@ The landing page introduces the four-step Strategy Builder (Entry, Manage, Exit,
 4. Restart or redeploy the app after changing environment variables.
 
 Account sign-in and private strategy storage use Supabase from client components. Until configured, the account pages show a setup message and local draft storage remains available. A browser draft is one local copy; account strategies are separate records. The EA Engine must independently validate strategy configuration before using it.
+
+## Strategy core / เพิ่มเติม 31 Oct 2026
+
+- กราฟ 2D และตัวตรวจ Setup/Trigger/Exit: `lib/strategy/`
+- ทดสอบกติกา: `npm run check:strategy`
+- AI Interpreter เตรียมไว้ เปิดใช้ภายหลังตาม `../docs/AI_SETUP.md`
+- Contract และข้อจำกัด: `../docs/STRATEGY_CONTRACT.md`
+- EA รุ่นแรกและคู่มือ: `../ea-engine/engine-v1/README.md`
